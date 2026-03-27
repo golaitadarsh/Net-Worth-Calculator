@@ -1,0 +1,36 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Secrets & env
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# Node (when app is scaffolded in Phase 4)
+node_modules/
+.next/
+out/
+dist/
+build/
+.vercel/
+
+# Python (if any scripts added)
+__pycache__/
+*.py[cod]
+.venv/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+Thumbs.db
