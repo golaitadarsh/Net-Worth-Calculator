@@ -13,6 +13,7 @@ Personal finance tracker: log daily expenses, credit card payments, transfers, a
 - `STATE.md` — what's done, what's in progress, what's next, open questions
 - `NAMING.md` — all naming conventions (files, DB, code, UI, git)
 - `docs/design/architecture_v2.md` — **CRITICAL: complete locked architecture spec** (5 phases, full schema, 15 decisions, 18 risks, Supabase migration plan)
+- `docs/design/formula_audit.md` — **Complete formula audit** of live Google Sheet (every formula, cross-sheet refs, risks, SQL equivalents)
 - `docs/schema/schema_v1.md` — Supabase-ready SQL DDL for all 8 tables
 - `JOURNEY.md` — project history (useful for understanding context)
 

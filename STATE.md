@@ -35,6 +35,7 @@
 - [x] `docs/design/competitive_analysis.md` — 8 competitors analysed
 - [x] DECISIONS.md — 8 ADRs logged
 - [x] Pushed to GitHub: https://github.com/golaitadarsh/Net-Worth-Calculator
+- [x] `docs/design/formula_audit.md` — Complete formula audit of live Google Sheet (all 6 tabs, every formula, cross-sheet refs, SQL equivalents)
 
 ---
 
@@ -65,8 +66,10 @@
 ## Open Questions
 
 - Splitwise integration: first-class account type with its own UI flow, or generic account? (decide before Phase 3)
-- Which specific Google Sheet URL is the live working sheet? (needed for Sheets MCP)
+- ~~Which specific Google Sheet URL is the live working sheet? (needed for Sheets MCP)~~ **RESOLVED:** https://docs.google.com/spreadsheets/d/1le4JT-4he0jGFlxTwn63ZGsiZfWrVZSyFbkcPsmsm7s
 - Phase 3 dashboard: fresh Lovable scaffold vs porting AdarshWallet React Native code?
+- F9 Net Worth formula excludes Cash Payment (F2) — is this intentional? (found in formula audit)
+- Investment totals (row 11) exclude Brokerage and Profit Booking rows (9-10) — confirm intent
 
 ---
 
@@ -84,6 +87,7 @@
 | `docs/schema/schema_v2.md` | Final target SQL DDL (run this in Supabase Phase 2) |
 | `sheets/migration/phase1_checklist.md` | 19-task migration checklist |
 | `sheets/Code.gs` | AppScript v5.0.0 FINAL (current live code) |
+| `docs/design/formula_audit.md` | Complete formula audit of live Google Sheet |
 
 ---
 
