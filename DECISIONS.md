@@ -65,3 +65,21 @@ Decisions are logged here with date and rationale. Never delete old entries — 
 **Decision:** Each external integration is one file with identical function signatures. Swapping implementations requires changing one file and one config value. Nothing else changes.
 **Rationale:** Enables zero-downtime Sheets → Supabase migration in Phase 4.
 **Consequences:** Service files must maintain consistent function signatures.
+
+---
+
+## ADR-009 — Cash Payment IS included in Net Worth
+**Date:** 2026-03-28 (from formula audit)
+**Decision:** Net Worth = all account balances including Cash Payment (petty cash).
+**Rationale:** Current sheet has a bug — `F9 = SUM(F3:F8)` skips F2 (Cash Payment). Confirmed by user: cash on hand is real money and must be counted.
+**Fix:** Change Overall!F9 to `=SUM(F2:F8)` during Phase 1 migration (Task J1). In SQL: no WHERE filter on account type — all accounts included in net worth.
+**Consequences:** Net worth figure will increase by current Cash Payment balance (~₹4,080).
+
+---
+
+## ADR-010 — Brokerage = Expense, Profit Booking = Complex (not yet designed)
+**Date:** 2026-03-28 (from formula audit)
+**Decision (Brokerage):** Brokerage fees are a regular expense — logged in Kharche as Category=Investments, Subcategory=Brokerage. NOT included in investment capital totals.
+**Decision (Profit Booking):** When selling shares for profit, the proceeds flow back as income. How to handle the capital gain tracking is deferred — logged as a transfer type `profit_booking_equity` in the transfers table. Full accounting design (cost basis, realized gains) is Phase 5+.
+**Rationale:** Brokerage is a cost, not an investment. Profit booking is complex enough to need separate design discussion.
+**Consequences:** `investment_snapshots` excludes Brokerage fund_type. Profit Booking uses `transfer_type = profit_booking_equity` in the transfers table, destination = bank account.

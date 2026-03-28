@@ -60,7 +60,7 @@ The dashboard sheet. Contains all computed views — no raw data entry.
 **Notes:**
 1. C2 formula uses `$E:$E` (Account column) for BOTH the match criteria AND the exclusion `"<>Credit Card"`. This means it sums Kharche amounts where Account = "Cash Payment" AND Account <> "Credit Card" — the second condition is redundant since "Cash Payment" already isn't "Credit Card". This works but is logically unnecessary.
 2. C8 (Investments) uses `Kharche!$C:$C` (Category column) instead of `$E:$E` (Account), and has a leading negative sign. This means investment amounts appear positive in the balance calculation even though they are expenses.
-3. F9 `=Sum(F3:F8)` **excludes F2 (Cash Payment)**. Net Worth = bank balances + investments, but not petty cash.
+3. F9 `=Sum(F3:F8)` **excludes F2 (Cash Payment)**. ⚠️ **BUG — confirmed by user: Cash Payment SHOULD be included in Net Worth.** Fix: change to `=Sum(F2:F8)` in Phase 1 migration (Task J1).
 
 ### 1.2 Salary Section (Columns H-K, Rows 1-16)
 
@@ -374,8 +374,8 @@ B21     -------> Overall $K:$K (Salary Amount)    (self-reference)
 |---|-------|--------|----------------|
 | 1 | **Hardcoded starting balances** (B2-B8) | Cannot track balance changes over time; must manually update each period | Store as initial seed in `accounts` table with `opening_balance` and `effective_date` |
 | 2 | **B3 formula `=564507.85+sum(K2:K16)`** mixes hardcoded value with salary sum | If salary section grows past K16, new salaries silently excluded | In DB: JOIN accounts.opening_balance + SUM(salary_entries) |
-| 3 | **F9 Net Worth excludes Cash (F2)** | `=Sum(F3:F8)` starts at F3, skipping F2 (Cash Payment). Petty cash not in net worth | Design decision to document — or include cash in net worth calculation |
-| 4 | **Investment totals exclude rows 9-10** | `=sum(C3:C8)` in row 11 misses Brokerage and Profit Booking rows | Use dynamic range or named range in SQL |
+| 3 | **F9 Net Worth excludes Cash (F2)** — BUG | `=Sum(F3:F8)` starts at F3, skipping F2 (Cash Payment). **Confirmed bug — Cash should be included.** | Fix: `=Sum(F2:F8)`. Add to Phase 1 Task J1. |
+| 4 | **Investment totals exclude rows 9-10** — INTENTIONAL | `=sum(C3:C8)` misses Brokerage (row 9) and Profit Booking (row 10). **Confirmed intentional: Brokerage = pure expense (not investment capital). Profit Booking = complex, handled separately.** | In SQL: filter investment_snapshots excluding brokerage; handle profit booking as transfer type. |
 | 5 | **C8 uses different column** for matching | C8 matches on `$C:$C` (Category) while C2-C7 match on `$E:$E` (Account) | Inconsistent logic — document intent clearly for SQL migration |
 | 6 | **Salary data stored in Overall sheet** (columns H-K) | Salary is metadata on the dashboard, not in a proper data table | Create dedicated `salary_entries` or `income` table |
 
