@@ -62,6 +62,38 @@ const CONFIG = {
 
 ---
 
+## The AdarshWallet Experiment (March 2026)
+
+While the sheets system was working, a parallel experiment happened: building a React Native mobile app called "AdarshWallet" — with Gemini AI voice entry, live charts, offline mode, and Google Sheets sync.
+
+The app had actual screens: HomeScreen, EntryScreen, DashboardScreen, InsightsScreen, SetupScreen. A 50-step deployment guide. API services connecting the app to the Google Sheet as a backend. IST timezone support. Expo/EAS build pipeline.
+
+It didn't ship. The reason is instructive: **the data model wasn't ready**. The app was talking to a Google Sheet whose structure wasn't stable enough to be an API backend. The paired-column Dropdown Lists format meant any new category could corrupt the existing structure. The sheet had no row IDs, no audit trail, no soft deletes.
+
+**What was learned:** You can't build a reliable product on top of unstable data. The app code was fine. The foundation was wrong.
+
+The app code is preserved in `legacy/adarsh-wallet-v2/` — it has reusable logic for the Phase 3 dashboard.
+
+---
+
+## The Architecture Deep-Dive (March 2026)
+
+After the AdarshWallet experiment, a full architecture session produced `docs/design/architecture_v2.md` — a locked 5-phase specification covering:
+
+- Complete EAV long-table schema for Dropdown Lists (AI-safe, append-safe)
+- Full column specs for all 8 tables with audit fields baked in
+- Voice input pipeline (Sarvam AI STT → Gemini parse → Y/N confirm → Sheets write)
+- Service layer architecture where every integration is swappable
+- 15 architecture decisions, all resolved
+- 18 risk failure points with specific mitigations
+- Supabase migration plan (zero-downtime, one config change)
+
+The key insight from this session: **the current paired-column Dropdown Lists format is the root cause of fragility**. Every automation, every AI integration, every API write hits this same problem. Migrating to EAV long-table format is Phase 1 Task 1 — before anything else.
+
+The document was originally called "FinVoice Architecture" (another AI had renamed the project). It has been renamed to Net Worth Calculator throughout.
+
+---
+
 ## The Pivot — From Tool to Product
 
 At this point the system worked well for personal use. The question became: can this be a product?

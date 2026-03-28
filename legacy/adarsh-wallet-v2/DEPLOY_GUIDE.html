@@ -1,0 +1,1648 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AdarshWallet — Deploy Guide</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500;700&family=Outfit:wght@300;400;500;600&display=swap');
+
+  :root {
+    --bg-deep: #060d1f;
+    --bg-dark: #0f172a;
+    --bg-mid: #1e3a8a;
+    --bg-light: #1d4ed8;
+    --glass: rgba(255,255,255,0.04);
+    --glass-border: rgba(255,255,255,0.09);
+    --green: #10b981;
+    --green-glow: rgba(16,185,129,0.3);
+    --cyan: #06b6d4;
+    --amber: #f59e0b;
+    --red: #ef4444;
+    --purple: #8b5cf6;
+    --text-1: #f1f5f9;
+    --text-2: #94a3b8;
+    --text-3: #475569;
+    --card-shadow: 0 4px 32px rgba(0,0,0,0.5);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'Outfit', sans-serif;
+    background: var(--bg-deep);
+    color: var(--text-1);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Ambient background ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 80% 60% at 20% 10%, rgba(30,58,138,0.4) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 80% at 80% 80%, rgba(16,185,129,0.12) 0%, transparent 60%),
+      radial-gradient(ellipse 40% 40% at 50% 50%, rgba(6,182,212,0.05) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ── Stars ── */
+  .stars {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .star {
+    position: absolute;
+    width: 2px; height: 2px;
+    background: rgba(255,255,255,0.6);
+    border-radius: 50%;
+    animation: twinkle var(--d, 3s) ease-in-out infinite var(--delay, 0s);
+  }
+  @keyframes twinkle {
+    0%, 100% { opacity: 0.2; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.4); }
+  }
+
+  /* ── Layout ── */
+  .wrapper {
+    position: relative;
+    z-index: 1;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 0 24px 80px;
+  }
+
+  /* ── Hero ── */
+  .hero {
+    text-align: center;
+    padding: 80px 0 60px;
+  }
+  .hero-icon {
+    font-size: 80px;
+    display: block;
+    margin-bottom: 16px;
+    filter: drop-shadow(0 0 40px rgba(16,185,129,0.5));
+    animation: float 4s ease-in-out infinite;
+  }
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-12px); }
+  }
+  .hero h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(42px, 8vw, 72px);
+    font-weight: 800;
+    letter-spacing: -2px;
+    background: linear-gradient(135deg, #fff 0%, #93c5fd 40%, #6ee7b7 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1.05;
+    margin-bottom: 12px;
+  }
+  .hero-sub {
+    font-size: 18px;
+    color: var(--text-2);
+    margin-bottom: 32px;
+    font-weight: 300;
+  }
+  .hero-badges {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 48px;
+  }
+  .badge {
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+  .badge-green { background: rgba(16,185,129,0.15); color: var(--green); border: 1px solid rgba(16,185,129,0.3); }
+  .badge-blue { background: rgba(59,130,246,0.15); color: #60a5fa; border: 1px solid rgba(59,130,246,0.25); }
+  .badge-amber { background: rgba(245,158,11,0.15); color: var(--amber); border: 1px solid rgba(245,158,11,0.25); }
+  .badge-purple { background: rgba(139,92,246,0.15); color: var(--purple); border: 1px solid rgba(139,92,246,0.25); }
+
+  /* ── Progress bar ── */
+  .progress-track {
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+    border-radius: 20px;
+    padding: 20px 24px;
+    margin-bottom: 48px;
+    position: sticky;
+    top: 12px;
+    z-index: 10;
+    backdrop-filter: blur(20px);
+  }
+  .progress-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--text-2);
+    margin-bottom: 10px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .progress-bar-bg {
+    height: 6px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--bg-mid), var(--green));
+    border-radius: 3px;
+    transition: width 0.4s ease;
+    width: 0%;
+  }
+  .step-dots {
+    display: flex;
+    gap: 4px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+  }
+  .step-dot {
+    width: 12px; height: 12px;
+    border-radius: 3px;
+    background: rgba(255,255,255,0.1);
+    transition: all 0.3s ease;
+    cursor: pointer;
+  }
+  .step-dot.done { background: var(--green); box-shadow: 0 0 6px var(--green-glow); }
+  .step-dot.current { background: var(--cyan); box-shadow: 0 0 6px rgba(6,182,212,0.5); }
+
+  /* ── Phase headers ── */
+  .phase {
+    margin: 48px 0 24px;
+  }
+  .phase-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--text-3);
+    margin-bottom: 8px;
+  }
+  .phase-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text-1);
+  }
+  .phase-icon { font-size: 28px; margin-right: 8px; }
+
+  /* ── Step cards ── */
+  .step-card {
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+    border-radius: 20px;
+    padding: 24px;
+    margin-bottom: 16px;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s ease;
+    cursor: pointer;
+  }
+  .step-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(30,58,138,0.1), transparent);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .step-card:hover::before { opacity: 1; }
+  .step-card.completed {
+    border-color: rgba(16,185,129,0.3);
+    background: rgba(16,185,129,0.04);
+  }
+  .step-card.completed::after {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: var(--green);
+    border-radius: 3px 0 0 3px;
+  }
+
+  .step-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 0;
+  }
+  .step-number {
+    min-width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, var(--bg-mid), var(--bg-light));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    font-weight: 700;
+    color: #fff;
+    flex-shrink: 0;
+    transition: all 0.3s;
+  }
+  .step-card.completed .step-number {
+    background: linear-gradient(135deg, #059669, var(--green));
+  }
+  .step-number-done { font-size: 18px !important; }
+
+  .step-meta { flex: 1; }
+  .step-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--text-1);
+    margin-bottom: 4px;
+  }
+  .step-desc {
+    font-size: 13px;
+    color: var(--text-2);
+    line-height: 1.5;
+  }
+
+  .step-checkbox {
+    width: 28px; height: 28px;
+    border-radius: 8px;
+    border: 2px solid var(--glass-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: all 0.3s;
+    cursor: pointer;
+    font-size: 14px;
+  }
+  .step-card.completed .step-checkbox {
+    background: var(--green);
+    border-color: var(--green);
+  }
+
+  /* Step body (expandable) */
+  .step-body {
+    margin-top: 0;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.4s ease, margin-top 0.3s ease;
+  }
+  .step-card.open .step-body {
+    max-height: 2000px;
+    margin-top: 20px;
+  }
+
+  /* ── Code blocks ── */
+  .code-block {
+    background: rgba(0,0,0,0.4);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    overflow: hidden;
+    margin: 12px 0;
+    position: relative;
+  }
+  .code-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 14px;
+    background: rgba(255,255,255,0.04);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .code-label-text {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-3);
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .copy-btn {
+    background: none;
+    border: 1px solid rgba(255,255,255,0.15);
+    color: var(--text-2);
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    cursor: pointer;
+    font-family: 'Outfit', sans-serif;
+    transition: all 0.2s;
+  }
+  .copy-btn:hover { background: rgba(255,255,255,0.1); color: #fff; }
+  .copy-btn.copied { color: var(--green); border-color: var(--green); }
+
+  .code-tabs {
+    display: flex;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .code-tab {
+    padding: 8px 16px;
+    font-size: 12px;
+    color: var(--text-3);
+    cursor: pointer;
+    border-right: 1px solid rgba(255,255,255,0.05);
+    transition: all 0.2s;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .code-tab.active {
+    color: var(--cyan);
+    background: rgba(6,182,212,0.08);
+  }
+  .code-panel {
+    display: none;
+  }
+  .code-panel.active { display: block; }
+  pre {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    line-height: 1.7;
+    padding: 16px;
+    overflow-x: auto;
+    color: #e2e8f0;
+    white-space: pre;
+  }
+  .k { color: #c084fc; }   /* keyword */
+  .s { color: #86efac; }   /* string */
+  .c { color: #64748b; }   /* comment */
+  .n { color: #93c5fd; }   /* name/var */
+  .num { color: #fbbf24; } /* number */
+
+  /* ── Test checklist ── */
+  .checklist-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 12px;
+    margin: 20px 0;
+  }
+  .check-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border-radius: 12px;
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+    cursor: pointer;
+    transition: all 0.25s;
+    user-select: none;
+  }
+  .check-item:hover { border-color: rgba(16,185,129,0.3); }
+  .check-item.checked {
+    background: rgba(16,185,129,0.08);
+    border-color: rgba(16,185,129,0.4);
+  }
+  .check-box {
+    width: 22px; height: 22px;
+    border-radius: 6px;
+    border: 2px solid var(--glass-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 13px;
+    transition: all 0.25s;
+  }
+  .check-item.checked .check-box {
+    background: var(--green);
+    border-color: var(--green);
+  }
+  .check-text {
+    font-size: 13px;
+    color: var(--text-2);
+    font-weight: 500;
+  }
+  .check-item.checked .check-text {
+    color: var(--text-1);
+  }
+
+  /* ── Error table ── */
+  .error-table-wrap {
+    overflow-x: auto;
+    border-radius: 16px;
+    border: 1px solid var(--glass-border);
+    margin: 16px 0;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  thead tr {
+    background: rgba(30,58,138,0.3);
+  }
+  th {
+    padding: 12px 16px;
+    text-align: left;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text-2);
+    white-space: nowrap;
+  }
+  td {
+    padding: 10px 16px;
+    border-top: 1px solid rgba(255,255,255,0.05);
+    color: var(--text-2);
+    vertical-align: top;
+    line-height: 1.5;
+  }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+  .err-msg {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--red);
+    background: rgba(239,68,68,0.08);
+    padding: 2px 6px;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+  .fix-text {
+    color: var(--green);
+  }
+
+  /* ── Done screen ── */
+  .done-screen {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(6,13,31,0.95);
+    backdrop-filter: blur(20px);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    text-align: center;
+    padding: 40px;
+  }
+  .done-screen.show { display: flex; }
+  .done-emoji { font-size: 100px; margin-bottom: 24px; animation: bounce 0.8s ease; }
+  @keyframes bounce {
+    0% { transform: scale(0); }
+    60% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+  }
+  .done-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 56px;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--green), var(--cyan));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 16px;
+  }
+  .done-sub {
+    font-size: 18px;
+    color: var(--text-2);
+    max-width: 480px;
+    line-height: 1.6;
+    margin-bottom: 32px;
+  }
+  .done-close {
+    padding: 14px 32px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, var(--bg-mid), var(--bg-light));
+    color: #fff;
+    font-size: 16px;
+    font-weight: 700;
+    border: none;
+    cursor: pointer;
+    font-family: 'Outfit', sans-serif;
+    transition: all 0.2s;
+  }
+  .done-close:hover { transform: scale(1.04); }
+
+  /* Confetti */
+  .confetti-piece {
+    position: fixed;
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    animation: confetti-fall 3s ease-in forwards;
+    z-index: 101;
+    pointer-events: none;
+  }
+  @keyframes confetti-fall {
+    0% { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+    100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+  }
+
+  /* ── Voice waveform demo ── */
+  .waveform-demo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 20px;
+    background: var(--glass);
+    border-radius: 16px;
+    border: 1px solid var(--glass-border);
+    margin: 16px 0;
+  }
+  .wave-bar {
+    width: 5px;
+    border-radius: 3px;
+    background: var(--bg-mid);
+    transition: height 0.15s ease;
+  }
+  .waveform-demo.active .wave-bar {
+    background: linear-gradient(to top, var(--bg-mid), var(--green));
+    animation: waveAnim var(--spd, 0.6s) ease-in-out infinite alternate var(--delay, 0s);
+  }
+  @keyframes waveAnim {
+    from { height: 8px; }
+    to { height: var(--max-h, 40px); }
+  }
+  .wave-btn {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .mic-demo {
+    width: 64px; height: 64px;
+    border-radius: 32px;
+    background: linear-gradient(135deg, var(--bg-mid), var(--bg-light));
+    border: none;
+    cursor: pointer;
+    font-size: 28px;
+    transition: all 0.2s;
+    box-shadow: 0 8px 32px rgba(30,58,138,0.5);
+  }
+  .mic-demo.listening {
+    background: linear-gradient(135deg, #dc2626, var(--red));
+    animation: micPulse 1s ease-in-out infinite;
+  }
+  @keyframes micPulse {
+    0%, 100% { box-shadow: 0 8px 32px rgba(239,68,68,0.4); }
+    50% { box-shadow: 0 8px 48px rgba(239,68,68,0.7), 0 0 0 12px rgba(239,68,68,0.1); }
+  }
+  .parsed-preview {
+    background: rgba(16,185,129,0.06);
+    border: 1px solid rgba(16,185,129,0.2);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-top: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    line-height: 1.8;
+    display: none;
+  }
+  .parsed-preview.show { display: block; }
+  .p-label { color: var(--text-3); }
+  .p-val { color: var(--green); }
+
+  /* ── Free cost table ── */
+  .cost-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 12px;
+    margin: 16px 0;
+  }
+  .cost-card {
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+    border-radius: 16px;
+    padding: 16px;
+    text-align: center;
+  }
+  .cost-service { font-size: 12px; color: var(--text-3); margin-bottom: 6px; font-weight: 600; }
+  .cost-limit { font-size: 14px; color: var(--text-1); font-weight: 600; margin-bottom: 4px; }
+  .cost-price { font-size: 20px; font-weight: 800; color: var(--green); font-family: 'Syne', sans-serif; }
+
+  /* ── Timezone banner ── */
+  .tz-banner {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 20px;
+    background: rgba(245,158,11,0.08);
+    border: 1px solid rgba(245,158,11,0.25);
+    border-radius: 16px;
+    margin: 16px 0;
+  }
+  .tz-icon { font-size: 28px; }
+  .tz-text { font-size: 14px; color: var(--amber); font-weight: 500; }
+
+  /* ── Section divider ── */
+  .divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--glass-border), transparent);
+    margin: 40px 0;
+  }
+
+  /* ── Callout ── */
+  .callout {
+    display: flex;
+    gap: 12px;
+    padding: 14px 18px;
+    border-radius: 14px;
+    margin: 12px 0;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .callout-warn {
+    background: rgba(245,158,11,0.08);
+    border: 1px solid rgba(245,158,11,0.2);
+    color: var(--amber);
+  }
+  .callout-info {
+    background: rgba(6,182,212,0.08);
+    border: 1px solid rgba(6,182,212,0.2);
+    color: var(--cyan);
+  }
+  .callout-success {
+    background: rgba(16,185,129,0.08);
+    border: 1px solid rgba(16,185,129,0.2);
+    color: var(--green);
+  }
+  .callout-icon { font-size: 18px; flex-shrink: 0; }
+
+  /* ── Final CTA ── */
+  .final-cta {
+    text-align: center;
+    padding: 60px 0;
+  }
+  .final-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 18px 40px;
+    border-radius: 20px;
+    background: linear-gradient(135deg, var(--bg-mid), var(--green));
+    color: #fff;
+    font-family: 'Syne', sans-serif;
+    font-size: 20px;
+    font-weight: 800;
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s;
+    box-shadow: 0 12px 48px rgba(16,185,129,0.3);
+    letter-spacing: -0.3px;
+  }
+  .final-btn:hover {
+    transform: translateY(-4px) scale(1.03);
+    box-shadow: 0 20px 60px rgba(16,185,129,0.4);
+  }
+
+  @media (max-width: 600px) {
+    .checklist-grid { grid-template-columns: 1fr; }
+    .cost-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<!-- Stars -->
+<div class="stars" id="stars"></div>
+
+<!-- Done Screen -->
+<div class="done-screen" id="doneScreen">
+  <div class="done-emoji">🎉</div>
+  <div class="done-title">Done ✅</div>
+  <div class="done-sub">
+    AdarshWallet is live on both phones.<br>
+    Net Worth Tracker with Voice AI — fully deployed.<br>
+    <strong style="color:var(--green)">₹0/month. Forever free.</strong>
+  </div>
+  <button class="done-close" onclick="closeDone()">Back to Guide</button>
+</div>
+
+<div class="wrapper">
+
+  <!-- Hero -->
+  <div class="hero">
+    <span class="hero-icon">💰</span>
+    <h1>AdarshWallet</h1>
+    <p class="hero-sub">50 Steps to a Working Voice Finance Tracker · Android + iOS · ₹0</p>
+    <div class="hero-badges">
+      <span class="badge badge-green">🎤 Voice Entry</span>
+      <span class="badge badge-blue">📊 Live Charts</span>
+      <span class="badge badge-amber">✨ Gemini AI</span>
+      <span class="badge badge-purple">🌐 Google Sheets Sync</span>
+      <span class="badge badge-green">🕐 Mumbai IST</span>
+      <span class="badge badge-blue">📴 Offline Mode</span>
+    </div>
+  </div>
+
+  <!-- Sticky progress -->
+  <div class="progress-track">
+    <div class="progress-label">
+      <span>DEPLOYMENT PROGRESS</span>
+      <span id="progressText">0 / 50 steps complete</span>
+    </div>
+    <div class="progress-bar-bg">
+      <div class="progress-bar-fill" id="progressBar"></div>
+    </div>
+    <div class="step-dots" id="stepDots"></div>
+  </div>
+
+  <!-- ════════════════════════════════════════════ -->
+  <!-- PHASE 1: ENVIRONMENT -->
+  <!-- ════════════════════════════════════════════ -->
+  <div class="phase">
+    <div class="phase-label">Phase 1 · Steps 1–10</div>
+    <div class="phase-title"><span class="phase-icon">🛠️</span>Environment Setup</div>
+  </div>
+
+  <!-- Step 1 -->
+  <div class="step-card" id="step-1" onclick="toggleStep(1)">
+    <div class="step-header">
+      <div class="step-number">01</div>
+      <div class="step-meta">
+        <div class="step-title">Install Node.js 20 LTS</div>
+        <div class="step-desc">Required runtime for Expo and npm packages</div>
+      </div>
+      <div class="step-checkbox" onclick="markDone(event,1)"></div>
+    </div>
+    <div class="step-body">
+      <div class="code-block">
+        <div class="code-tabs">
+          <div class="code-tab active" onclick="switchTab(event,'node','mac')">🍎 Mac</div>
+          <div class="code-tab" onclick="switchTab(event,'node','win')">🪟 Windows</div>
+          <div class="code-tab" onclick="switchTab(event,'node','linux')">🐧 Linux</div>
+        </div>
+        <div class="code-panel active" data-group="node" data-tab="mac">
+          <div class="code-label"><span class="code-label-text">Terminal</span><button class="copy-btn" onclick="copyCode(event)">Copy</button></div>
+          <pre>/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+brew install node@20
+node --version   <span class="c"># → v20.x.x</span>
+npm --version    <span class="c"># → 10.x.x</span></pre>
+        </div>
+        <div class="code-panel" data-group="node" data-tab="win">
+          <div class="code-label"><span class="code-label-text">PowerShell (Admin)</span><button class="copy-btn" onclick="copyCode(event)">Copy</button></div>
+          <pre>winget install OpenJS.NodeJS.LTS
+<span class="c"># Restart PowerShell, then:</span>
+node --version
+npm --version</pre>
+        </div>
+        <div class="code-panel" data-group="node" data-tab="linux">
+          <div class="code-label"><span class="code-label-text">Terminal</span><button class="copy-btn" onclick="copyCode(event)">Copy</button></div>
+          <pre>curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt-get install -y nodejs
+node --version   <span class="c"># → v20.x.x</span></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 2 -->
+  <div class="step-card" id="step-2" onclick="toggleStep(2)">
+    <div class="step-header">
+      <div class="step-number">02</div>
+      <div class="step-meta">
+        <div class="step-title">Install Expo CLI & EAS CLI</div>
+        <div class="step-desc">Build tools for React Native — same command on all platforms</div>
+      </div>
+      <div class="step-checkbox" onclick="markDone(event,2)"></div>
+    </div>
+    <div class="step-body">
+      <div class="code-block">
+        <div class="code-label"><span class="code-label-text">All Platforms</span><button class="copy-btn" onclick="copyCode(event)">Copy</button></div>
+        <pre>npm install -g expo-cli eas-cli
+expo --version   <span class="c"># → 6.x.x</span>
+eas --version    <span class="c"># → 8.x.x</span></pre>
+      </div>
+      <div class="callout callout-warn">
+        <span class="callout-icon">⚠️</span>
+        <span><strong>Windows permission error?</strong> Run PowerShell as Administrator, then: <code>Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser</code></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Steps 3–5 condensed -->
+  <div class="step-card" id="step-3" onclick="toggleStep(3)">
+    <div class="step-header">
+      <div class="step-number">03</div>
+      <div class="step-meta">
+        <div class="step-title">Install Git</div>
+        <div class="step-desc">Version control — needed for EAS builds</div>
+      </div>
+      <div class="step-checkbox" onclick="markDone(event,3)"></div>
+    </div>
+    <div class="step-body">
+      <div class="code-block">
+        <div class="code-tabs">
+          <div class="code-tab active" onclick="switchTab(event,'git','mac')">🍎 Mac</div>
+          <div class="code-tab" onclick="switchTab(event,'git','win')">🪟 Windows</div>
+          <div class="code-tab" onclick="switchTab(event,'git','linux')">🐧 Linux</div>
+        </div>
+        <div class="code-panel active" data-group="git" data-tab="mac">
+          <pre>xcode-select --install   <span class="c"># installs git too</span>
+git --version</pre>
+        </div>
+        <div class="code-panel" data-group="git" data-tab="win">
+          <pre>winget install Git.Git
+<span class="c"># Restart terminal</span>
+git --version</pre>
+        </div>
+        <div class="code-panel" data-group="git" data-tab="linux">
+          <pre>sudo apt-get install -y git
+git --version</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="step-card" id="step-4" onclick="toggleStep(4)">
+    <div class="step-header">
+      <div class="step-number">04</div>
+      <div class="step-meta">
+        <div class="step-title">Extract AdarshWallet ZIP</div>
+        <div class="step-desc">Unzip the project to your working folder</div>
+      </div>
+      <div class="step-checkbox" onclick="markDone(event,4)"></div>
+    </div>
+    <div class="step-body">
+      <div class="code-block">
+        <div class="code-tabs">
+          <div class="code-tab active" onclick="switchTab(event,'zip','mac')">🍎 Mac/Linux</div>
+          <div class="code-tab" onclick="switchTab(event,'zip','win')">🪟 Windows</div>
+        </div>
+        <div class="code-panel active" data-group="zip" data-tab="mac">
+          <pre>cd ~/Downloads
+unzip AdarshWallet.zip
+cd AdarshWallet
+ls -la   <span class="c"># Should show: App.js, Code.gs, src/, package.json</span></pre>
+        </div>
+        <div class="code-panel" data-group="zip" data-tab="win">
+          <pre>cd $HOME\Downloads
+Expand-Archive -Path AdarshWallet.zip -DestinationPath AdarshWallet
+cd AdarshWallet
+dir</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="step-card" id="step-5" onclick="toggleStep(5)">
+    <div class="step-header">
+      <div class="step-number">05</div>
+      <div class="step-meta">
+        <div class="step-title">Install Project Dependencies</div>
+        <div class="step-desc">~1,200 packages · takes 2–5 min on first run</div>
+      </div>
+      <div class="step-checkbox" onclick="markDone(event,5)"></div>
+    </div>
+    <div class="step-body">
+      <div class="code-block">
+        <div class="code-label"><span class="code-label-text">Inside AdarshWallet/ folder</span><button class="copy-btn" onclick="copyCode(event)">Copy</button></div>
+        <pre>npm install
+<span class="c"># Expected: "added 1200+ packages in 180s"</span></pre>
+      </div>
+      <div class="callout callout-warn">
+        <span class="callout-icon">⚠️</span>
+        <span>ERESOLVE error? → <code>npm install --legacy-peer-deps</code><br>Mac M1/M2? → <code>arch -x86_64 npm install</code></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="step-card" id="step-6" onclick="toggleStep(6)">
+    <div class="step-header">
+      <div class="step-number">06</div>
+      <div class="step-meta">
+        <div class="step-title">Create Free Expo Account</div>
+        <div class="step-desc">expo.dev — free, no credit card required</div>
+      </div>
+      <div class="step-checkbox" onclick="markDone(event,6)"></div>
+    </div>
+    <div class="step-body">
+      <div class="code-block">
+        <div class="code-label"><span class="code-label-text">Terminal</span><button class="copy-btn" onclick="copyCode(event)">Copy</button></div>
+        <pre>eas register   <span class="c"># Sign up if needed</span>
+eas login      <span class="c"># Enter email + password</span>
+eas whoami     <span class="c"># Shows your username ✓</span></pre>
+      </div>
+    </div>
+  </div>
+
+  <div class="step-card" id="step-7" onclick="toggleStep(7)">
+    <div class="step-header">
+      <div class="step-number">07</div>
+      <div class="step-meta">
+        <div class="step-title">Initialize EAS Project</div>
+        <div class="step-desc">Links your local code to Expo cloud</div>
+      </div>
+      <div class="step-checkbox" onclick="markDone(event,7)"></div>
+    </div>
+    <div class="step-body">
+      <div class="code-block">
+        <div class="code-label"><span class="code-label-text">Terminal (inside AdarshWallet/)</span><button class="copy-btn" onclick="copyCode(event)">Copy</button></div>
+        <pre>eas init
+<span class="c"># "Would you like to create a project?" → Y</span>
+<span class="c"># Project name: adarshwallet</span>
+<span class="c"># Auto-updates app.json with your projectId</span></pre>
+      </div>
+    </div>
+  </div>
+
+  <div class="step-card" id="step-8" onclick="toggleStep(8)">
+    <div class="step-header">
+      <div class="step-number">08</div>
+      <div class="step-meta">
+        <div class="step-title">Install Expo Go on Your Phone</div>
+        <div class="step-desc">Android: Play Store · iOS: App Store · Search "Expo Go"</div>
+      </div>
+      <div class="step-checkbox" onclick="markDone(event,8)"></div>
+    </div>
+    <div class="step-body">
+      <div class="callout callout-info">
+        <span class="callout-icon">📱</span>
+        <span>Install <strong>Expo Go</strong> from your app store. Sign in with the same email used in Step 6. This lets you run the app instantly without building an APK.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 9 — TIMEZONE SETUP -->
+  <div class="step-card" id="step-9" onclick="toggleStep(9)">
+    <div class="step-header">
+      <div class="step-number">09</div>
+      <div class="step-meta">
+        <div class="step-title">Set Mumbai IST Timezone (UTC+5:30)</div>
+        <div class="step-desc">Ensures all dates/times show correctly for India</div>
+      </div>
+      <div class="step-checkbox" onclick="markDone(event,9)"></div>
+    </div>
+    <div class="step-body">
+      <div class="tz-banner">
+        <span class="tz-icon">🕐</span>
+        <span class="tz-text">All expense dates and timestamps will use <strong>Asia/Kolkata (IST UTC+5:30)</strong> — Mumbai timezone</span>
+      </div>
+      <p style="font-size:13px;color:var(--text-2);margin-bottom:12px;">In <code>src/utils/constants.js</code>, ensure CONFIG has:</p>
+      <div class="code-block">
+        <div class="code-label"><span class="code-label-text">constants.js</span><button class="copy-btn" onclick="copyCode(event)">Copy</button></div>
+        <pre><span class="k">export const</span> <span class="n">CONFIG</span> = {
+  <span class="c">// ... your API keys ...</span>
+  <span class="n">TIMEZONE</span>: <span class="s">'Asia/Kolkata'</span>,   <span class="c">// IST Mumbai</span>
+  <span class="n">TIMEZONE_OFFSET</span>: <span class="s">'+05:30'</span>,
+  <span class="n">DATE_LOCALE</span>: <span class="s">'en-IN'</span>,
+};</pre>
+      </div>
+      <p style="font-size:13px;color:var(--text-2);margin:12px 0;">In <code>Code.gs</code> (Apps Script), update formatDate():</p>
+      <div class="code-block">
+        <div class="code-label"><span class="code-label-text">Code.gs — formatDate()</span><button class="copy-btn" onclick="copyCode(event)">Copy</button></div>
+        <pre><span class="k">function</span> <span class="n">formatDate</span>(d) {
+  <span class="k">if</span> (!d) <span class="k">return</span> <span class="s">''</span>;
+  <span class="k">if</span> (d <span class="k">instanceof</span> Date)
+    <span class="k">return</span> Utilities.formatDate(d, <span class="s">'Asia/Kolkata'</span>, <span class="s">'yyyy-MM-dd'</span>);
+  <span class="k">return</span> String(d).substring(<span class="num">0</span>, <span class="num">10</span>);
+}</pre>
+      </div>
+    </div>
+  </div>
+
+  <div class="step-card" id="step-10" onclick="toggleStep(10)">
+    <div class="step-header">
+      <div class="step-number">10</div>
+      <div class="step-meta">
+        <div class="step-title">Verify Project Structure</div>
+        <div class="step-desc">Confirm all files are in place before proceeding</div>
+      </div>
+      <div class="step-checkbox" onclick="markDone(event,10)"></div>
+    </div>
+    <div class="step-body">
+      <div class="code-block">
+        <div class="code-label"><span class="code-label-text">Terminal</span><button class="copy-btn" onclick="copyCode(event)">Copy</button></div>
+        <pre>ls src/screens/   <span class="c"># HomeScreen.js, EntryScreen.js, DashboardScreen.js, InsightsScreen.js, SetupScreen.js</span>
+ls src/services/  <span class="c"># api.js, database.js</span>
+ls src/utils/     <span class="c"># constants.js, AppContext.js</span>
+ls               <span class="c"># App.js, Code.gs, app.json, eas.json, package.json</span></pre>
+      </div>
+      <div class="callout callout-success">
+        <span class="callout-icon">✅</span>
+        <span>Phase 1 complete — development environment ready!</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ════════════════════════════════════════════ -->
+  <!-- PHASE 2: GOOGLE SHEETS -->
+  <!-- ════════════════════════════════════════════ -->
+  <div class="phase">
+    <div class="phase-label">Phase 2 · Steps 11–20</div>
+    <div class="phase-title"><span class="phase-icon">📊</span>Google Sheets Backend</div>
+  </div>
+
+  <!-- Steps 11–20 (condensed for space but detailed) -->
+  <div class="step-card" id="step-11" onclick="toggleStep(11)">
+    <div class="step-header"><div class="step-number">11</div><div class="step-meta"><div class="step-title">Open Your Google Sheet</div><div class="step-desc">Verify all 4 required tabs exist</div></div><div class="step-checkbox" onclick="markDone(event,11)"></div></div>
+    <div class="step-body">
+      <div class="callout callout-info"><span class="callout-icon">📋</span><span>Open <strong>Net_worth_Tracker</strong> in Google Sheets. Confirm tabs: <strong>Overall</strong> · <strong>Kharche</strong> · <strong>Actual Investments</strong> · <strong>Credit Card Bills</strong></span></div>
+    </div>
+  </div>
+
+  <div class="step-card" id="step-12" onclick="toggleStep(12)">
+    <div class="step-header"><div class="step-number">12</div><div class="step-meta"><div class="step-title">Open Apps Script Editor</div><div class="step-desc">Extensions → Apps Script</div></div><div class="step-checkbox" onclick="markDone(event,12)"></div></div>
+    <div class="step-body"><div class="callout callout-info"><span class="callout-icon">🔧</span><span>In Google Sheets: <strong>Extensions → Apps Script</strong> → opens script.google.com in new tab</span></div></div>
+  </div>
+
+  <div class="step-card" id="step-13" onclick="toggleStep(13)">
+    <div class="step-header"><div class="step-number">13</div><div class="step-meta"><div class="step-title">Replace Code.gs with AdarshWallet Backend</div><div class="step-desc">Select All → Delete → Paste → Save</div></div><div class="step-checkbox" onclick="markDone(event,13)"></div></div>
+    <div class="step-body">
+      <div class="callout callout-warn"><span class="callout-icon">⚠️</span><span>Select ALL (<code>Ctrl+A</code>), DELETE, then paste the entire <code>Code.gs</code> from your ZIP. Click Save (💾 or <code>Ctrl+S</code>).</span></div>
+    </div>
+  </div>
+
+  <div class="step-card" id="step-14" onclick="toggleStep(14)">
+    <div class="step-header"><div class="step-number">14</div><div class="step-meta"><div class="step-title">Run setupIferrorProtection</div><div class="step-desc">Adds IFERROR to all SUMIFS formulas in your sheet</div></div><div class="step-checkbox" onclick="markDone(event,14)"></div></div>
+    <div class="step-body">
+      <p style="font-size:13px;color:var(--text-2);margin-bottom:10px;">In Apps Script, select <strong>setupIferrorProtection</strong> from function dropdown → click ▶ Run → Authorize → Run again.<br><br>Execution log should say: <span style="color:var(--green);font-family:monospace">IFERROR protection applied to Overall sheet</span></p>
+    </div>
+  </div>
+
+  <div class="step-card" id="step-15" onclick="toggleStep(15)">
+    <div class="step-header"><div class="step-number">15</div><div class="step-meta"><div class="step-title">Deploy as Web App</div><div class="step-desc">This creates the API endpoint your app will call</div></div><div class="step-checkbox" onclick="markDone(event,15)"></div></div>
+    <div class="step-body">
+      <p style="font-size:13px;color:var(--text-2);margin-bottom:12px;line-height:1.6;">
+        Click <strong>Deploy → New deployment</strong><br>
+        Type: <strong>Web App</strong><br>
+        Execute as: <strong>Me</strong><br>
+        Who has access: <strong>Anyone</strong> ← critical<br>
+        Click Deploy → <strong>Copy the URL</strong>
+      </p>
+      <div class="code-block">
+        <div class="code-label"><span class="code-label-text">Your Web App URL (save this!)</span></div>
+        <pre>https://script.google.com/macros/s/<span class="n">AKfycb...</span>/exec</pre>
+      </div>
+    </div>
+  </div>
+
+  <div class="step-card" id="step-16" onclick="toggleStep(16)">
+    <div class="step-header"><div class="step-number">16</div><div class="step-meta"><div class="step-title">Test API in Browser</div><div class="step-desc">Verify your Sheet data is accessible</div></div><div class="step-checkbox" onclick="markDone(event,16)"></div></div>
+    <div class="step-body">
+      <div class="code-block">
+        <div class="code-label"><span class="code-label-text">Open this URL in browser</span></div>
+        <pre>https://script.google.com/macros/s/<span class="n">YOUR_ID</span>/exec?action=getDashboard</pre>
+      </div>
+      <div class="callout callout-success"><span class="callout-icon">✅</span><span>Should return JSON with your Axis Bank, SBI, Splitwise balances → backend working!</span></div>
+    </div>
+  </div>
+
+  <div class="step-card" id="step-17" onclick="toggleStep(17)">
+    <div class="step-header"><div class="step-number">17</div><div class="step-meta"><div class="step-title">Get Free Gemini API Key</div><div class="step-desc">15 req/min · 1M tokens/day · ₹0</div></div><div class="step-checkbox" onclick="markDone(event,17)"></div></div>
+    <div class="step-body">
+      <p style="font-size:13px;color:var(--text-2);margin-bottom:10px;line-height:1.6;">
+        1. Visit <strong>https://aistudio.google.com/app/apikey</strong><br>
+        2. Sign in with Google<br>
+        3. Click <strong>Create API Key</strong> → Select project<br>
+        4. Copy key: starts with <code style="color:var(--green)">AIzaSy...</code>
+      </p>
+      <div class="cost-grid" style="grid-template-columns:repeat(3,1fr)">
+        <div class="cost-card"><div class="cost-service">Daily Tokens</div><div class="cost-limit">1,000,000</div><div class="cost-price">Free</div></div>
+        <div class="cost-card"><div class="cost-service">Rate Limit</div><div class="cost-limit">15 req/min</div><div class="cost-price">Free</div></div>
+        <div class="cost-card"><div class="cost-service">Monthly Cost</div><div class="cost-limit">Unlimited</div><div class="cost-price">₹0</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="step-card" id="step-18" onclick="toggleStep(18)">
+    <div class="step-header"><div class="step-number">18</div><div class="step-meta"><div class="step-title">Get Your Spreadsheet ID</div><div class="step-desc">From your Google Sheet URL</div></div><div class="step-checkbox" onclick="markDone(event,18)"></div></div>
+    <div class="step-body">
+      <div class="code-block">
+        <div class="code-label"><span class="code-label-text">Your Sheet URL — copy the highlighted part</span></div>
+        <pre>https://docs.google.com/spreadsheets/d/<span class="n">1BxiMVNnmYOUR_ID_HERE</span>/edit#gid=0
+                                            <span class="c">↑ THIS is your Spreadsheet ID ↑</span></pre>
+      </div>
+    </div>
+  </div>
+
+  <div class="step-card" id="step-19" onclick="toggleStep(19)">
+    <div class="step-header"><div class="step-number">19</div><div class="step-meta"><div class="step-title">Fill in API Credentials</div><div class="step-desc">Update src/utils/constants.js with your keys</div></div><div class="step-checkbox" onclick="markDone(event,19)"></div></div>
+    <div class="step-body">
+      <div class="code-block">
+        <div class="code-label"><span class="code-label-text">src/utils/constants.js — CONFIG section</span><button class="copy-btn" onclick="copyCode(event)">Copy</button></div>
+        <pre><span class="k">export const</span> <span class="n">CONFIG</span> = {
+  <span class="n">APPS_SCRIPT_URL</span>: <span class="s">'https://script.google.com/macros/s/YOUR_ID/exec'</span>,
+  <span class="n">GEMINI_API_KEY</span>:  <span class="s">'AIzaSyYOUR_KEY_HERE'</span>,
+  <span class="n">SPREADSHEET_ID</span>: <span class="s">'YOUR_SPREADSHEET_ID'</span>,
+  <span class="n">GEMINI_MODEL</span>:   <span class="s">'gemini-1.5-flash'</span>,
+  <span class="n">REFRESH_INTERVAL</span>: <span class="num">5000</span>,
+  <span class="n">TIMEZONE</span>: <span class="s">'Asia/Kolkata'</span>,
+  <span class="n">DATE_LOCALE</span>: <span class="s">'en-IN'</span>,
+};</pre>
+      </div>
+    </div>
+  </div>
+
+  <div class="step-card" id="step-20" onclick="toggleStep(20)">
+    <div class="step-header"><div class="step-number">20</div><div class="step-meta"><div class="step-title">Start Development Server</div><div class="step-desc">Launch Metro Bundler and get QR code</div></div><div class="step-checkbox" onclick="markDone(event,20)"></div></div>
+    <div class="step-body">
+      <div class="code-block">
+        <div class="code-label"><span class="code-label-text">Terminal (keep open!)</span><button class="copy-btn" onclick="copyCode(event)">Copy</button></div>
+        <pre>npx expo start
+<span class="c"># QR code appears. Keep this terminal open!</span>
+<span class="c"># Press 'a' for Android emulator</span>
+<span class="c"># Press 'i' for iOS simulator (Mac only)</span></pre>
+      </div>
+      <div class="callout callout-success"><span class="callout-icon">✅</span><span>Phase 2 complete — Google Sheets backend deployed & configured!</span></div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ════════════════════════════════════════════ -->
+  <!-- PHASE 3: TESTING -->
+  <!-- ════════════════════════════════════════════ -->
+  <div class="phase">
+    <div class="phase-label">Phase 3 · Steps 21–40</div>
+    <div class="phase-title"><span class="phase-icon">🧪</span>Feature Testing</div>
+  </div>
+
+  <!-- Steps 21–30: App testing -->
+  <div class="step-card" id="step-21" onclick="toggleStep(21)">
+    <div class="step-header"><div class="step-number">21</div><div class="step-meta"><div class="step-title">Open App on Android (Expo Go)</div><div class="step-desc">Scan QR code with Expo Go app</div></div><div class="step-checkbox" onclick="markDone(event,21)"></div></div>
+    <div class="step-body"><div class="callout callout-info"><span class="callout-icon">📱</span><span>Open Expo Go → Scan QR code from terminal → App loads in ~30 seconds → You see the AdarshWallet Setup screen</span></div></div>
+  </div>
+
+  <div class="step-card" id="step-22" onclick="toggleStep(22)">
+    <div class="step-header"><div class="step-number">22</div><div class="step-meta"><div class="step-title">Open App on iPhone (Expo Go)</div><div class="step-desc">Use Camera app to scan QR → opens Expo Go</div></div><div class="step-checkbox" onclick="markDone(event,22)"></div></div>
+    <div class="step-body"><div class="callout callout-info"><span class="callout-icon">🍎</span><span>Point iPhone Camera at QR code → tap banner notification → opens in Expo Go. Or: Expo Go → Enter URL manually → type the <code>exp://</code> URL from terminal</span></div></div>
+  </div>
+
+  <div class="step-card" id="step-23" onclick="toggleStep(23)">
+    <div class="step-header"><div class="step-number">23</div><div class="step-meta"><div class="step-title">Complete In-App Setup</div><div class="step-desc">Enter your name + paste API credentials</div></div><div class="step-checkbox" onclick="markDone(event,23)"></div></div>
+    <div class="step-body">
+      <p style="font-size:13px;color:var(--text-2);line-height:1.7;">
+        1. Tap <strong>"Get Started →"</strong><br>
+        2. Name: <strong>Adarsh</strong><br>
+        3. Apps Script URL: paste from Step 15<br>
+        4. Gemini Key: paste from Step 17<br>
+        5. Spreadsheet ID: paste from Step 18<br>
+        6. Tap <strong>"Launch AdarshWallet 🚀"</strong>
+      </p>
+    </div>
+  </div>
+
+  <div class="step-card" id="step-24" onclick="toggleStep(24)">
+    <div class="step-header"><div class="step-number">24</div><div class="step-meta"><div class="step-title">Verify Dashboard Data Loads</div><div class="step-desc">Should show your Axis Bank ~₹6.76L, SBI, Net Worth</div></div><div class="step-checkbox" onclick="markDone(event,24)"></div></div>
+    <div class="step-body"><div class="callout callout-success"><span class="callout-icon">✅</span><span>Wait 5-10 seconds. You should see: Axis Bank balance, SBI balance, net worth gauge, category pie chart with Feb 2026 data. Pull down to force refresh.</span></div></div>
+  </div>
+
+  <!-- Voice Entry Test -->
+  <div class="step-card" id="step-25" onclick="toggleStep(25)">
+    <div class="step-header">
+      <div class="step-number">25</div>
+      <div class="step-meta">
+        <div class="step-title">✅ Test Voice Entry — Android</div>
+        <div class="step-desc">Hold mic · say expense · watch AI parse it</div>
+      </div>
+      <div class="step-checkbox" onclick="markDone(event,25)"></div>
+    </div>
+    <div class="step-body">
+      <!-- Live waveform demo -->
+      <div class="waveform-demo" id="waveDemo">
+        <div class="wave-btn">
+          <button class="mic-demo" id="micBtn" onclick="toggleMicDemo()">🎤</button>
+        </div>
+        <div style="display:flex;gap:4px;align-items:center" id="waveBars"></div>
+        <span style="font-size:12px;color:var(--text-3);margin-left:8px" id="waveLabel">Hold mic to demo</span>
+      </div>
+      <div class="parsed-preview" id="parsedPreview">
+        <div><span class="p-label">Particulars: </span><span class="p-val">Blinkit</span></div>
+        <div><span class="p-label">Amount:      </span><span class="p-val">₹500</span></div>
+        <div><span class="p-label">Category:    </span><span class="p-val">Household › Fixed Groceries</span></div>
+        <div><span class="p-label">Account:     </span><span class="p-val">UPI/Bank Accounts · SBI</span></div>
+        <div><span class="p-label">App:         </span><span class="p-val">Paytm</span></div>
+        <div><span class="p-label">Confidence:  </span><span class="p-val">94% ✓</span></div>
+      </div>
+      <p style="margin-top:12px;font-size:13px;color:var(--text-2);">Say: <strong style="color:var(--text-1)">"Spent ₹500 on Blinkit SBI Paytm"</strong><br>Then tap <strong>Save to Sheets ✓</strong> → 🎉 confetti plays → check Google Sheet Kharche tab</p>
+    </div>
+  </div>
+
+  <div class="step-card" id="step-26" onclick="toggleStep(26)">
+    <div class="step-header"><div class="step-number">26</div><div class="step-meta"><div class="step-title">✅ Test Voice Entry — iPhone</div><div class="step-desc">Grant mic + speech recognition permissions</div></div><div class="step-checkbox" onclick="markDone(event,26)"></div></div>
+    <div class="step-body"><div class="callout callout-info"><span class="callout-icon">🍎</span><span>When prompted tap <strong>Allow</strong> for microphone, then <strong>Allow</strong> for speech recognition. Try: <strong>"Swiggy 450 Axis credit card"</strong></span></div></div>
+  </div>
+
+  <div class="step-card" id="step-27" onclick="toggleStep(27)">
+    <div class="step-header"><div class="step-number">27</div><div class="step-meta"><div class="step-title">✅ Test Text Entry (Fallback)</div><div class="step-desc">Type expense when voice isn't available</div></div><div class="step-checkbox" onclick="markDone(event,27)"></div></div>
+    <div class="step-body">
+      <p style="font-size:13px;color:var(--text-2);margin-bottom:10px;">In text box, type: <code style="color:var(--green)">IRCTC 1888 SBI</code> → press → button<br>Should parse: Trip · Travelling · UPI/Bank Accounts · SBI</p>
+    </div>
+  </div>
+
+  <div class="step-card" id="step-28" onclick="toggleStep(28)">
+    <div class="step-header"><div class="step-number">28</div><div class="step-meta"><div class="step-title">✅ Test Charts & Dashboard</div><div class="step-desc">Bar charts, pie, trend line, month navigation</div></div><div class="step-checkbox" onclick="markDone(event,28)"></div></div>
+    <div class="step-body">
+      <p style="font-size:13px;color:var(--text-2);line-height:1.7;">
+        Tap <strong>📊 Charts</strong> → verify:<br>
+        · Bar chart shows categories<br>
+        · Tap ‹ → goes to Jan 2026 → data updates<br>
+        · Trend tab: 5-month line chart<br>
+        · Accounts tab: all balances listed<br>
+        · Pull to refresh → updates from Sheets
+      </p>
+    </div>
+  </div>
+
+  <div class="step-card" id="step-29" onclick="toggleStep(29)">
+    <div class="step-header"><div class="step-number">29</div><div class="step-meta"><div class="step-title">✅ Test AI Insights (Gemini)</div><div class="step-desc">Ask about your finances with voice read-aloud</div></div><div class="step-checkbox" onclick="markDone(event,29)"></div></div>
+    <div class="step-body">
+      <p style="font-size:13px;color:var(--text-2);line-height:1.7;">
+        Tap <strong>✨ AI</strong> → tap chip: <em>"What's my biggest expense category?"</em><br>
+        Gemini responds with your real spend data.<br>
+        Tap 🔊 → response is read aloud in Indian English.
+      </p>
+    </div>
+  </div>
+
+  <div class="step-card" id="step-30" onclick="toggleStep(30)">
+    <div class="step-header"><div class="step-number">30</div><div class="step-meta"><div class="step-title">✅ Test Offline Mode</div><div class="step-desc">Works without internet, auto-syncs on reconnect</div></div><div class="step-checkbox" onclick="markDone(event,30)"></div></div>
+    <div class="step-body">
+      <p style="font-size:13px;color:var(--text-2);line-height:1.7;">
+        1. Enable Airplane Mode on phone<br>
+        2. Add expense via Entry screen<br>
+        3. See: <strong style="color:var(--amber)">"Saved locally, will sync when online"</strong><br>
+        4. Disable Airplane Mode<br>
+        5. Wait 5s → auto-syncs → check Google Sheet ✓
+      </p>
+      <div class="callout callout-success"><span class="callout-icon">✅</span><span>Phase 3 testing complete! All core features verified.</span></div>
+    </div>
+  </div>
+
+  <!-- Steps 31-40: More tests -->
+  <div class="step-card" id="step-31" onclick="toggleStep(31)"><div class="step-header"><div class="step-number">31</div><div class="step-meta"><div class="step-title">✅ Test Live 5-Second Sync</div><div class="step-desc">Add row in Google Sheet → app updates automatically</div></div><div class="step-checkbox" onclick="markDone(event,31)"></div></div><div class="step-body"><p style="font-size:13px;color:var(--text-2);">Add a row manually in Google Sheets Kharche tab → wait 5 seconds on phone → pull to refresh → new entry appears in charts</p></div></div>
+
+  <div class="step-card" id="step-32" onclick="toggleStep(32)"><div class="step-header"><div class="step-number">32</div><div class="step-meta"><div class="step-title">✅ Test IST Timestamps</div><div class="step-desc">Dates must show Indian time, not UTC</div></div><div class="step-checkbox" onclick="markDone(event,32)"></div></div><div class="step-body"><p style="font-size:13px;color:var(--text-2);">Add an expense at 11:30 PM IST. In Google Sheet, date should show today's date in IST (not yesterday in UTC). Verify timezone is correct.</p></div></div>
+
+  <div class="step-card" id="step-33" onclick="toggleStep(33)"><div class="step-header"><div class="step-number">33</div><div class="step-meta"><div class="step-title">✅ Test All Voice Commands</div><div class="step-desc">Try 6 different expense types</div></div><div class="step-checkbox" onclick="markDone(event,33)"></div></div>
+  <div class="step-body">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;">
+      <div style="padding:10px;background:var(--glass);border-radius:10px;border:1px solid var(--glass-border)"><strong style="color:var(--text-1)">"Electricity bill 890 SBI Paytm"</strong><br><span style="color:var(--green)">→ Household · Electricity</span></div>
+      <div style="padding:10px;background:var(--glass);border-radius:10px;border:1px solid var(--glass-border)"><strong style="color:var(--text-1)">"Auto 120 Google Pay"</strong><br><span style="color:var(--green)">→ Transport · Auto/Cab</span></div>
+      <div style="padding:10px;background:var(--glass);border-radius:10px;border:1px solid var(--glass-border)"><strong style="color:var(--text-1)">"Netflix 649 Axis Bank"</strong><br><span style="color:var(--green)">→ Subscriptions</span></div>
+      <div style="padding:10px;background:var(--glass);border-radius:10px;border:1px solid var(--glass-border)"><strong style="color:var(--text-1)">"Beers 1200 SBI"</strong><br><span style="color:var(--green)">→ Cigarettes / Food</span></div>
+      <div style="padding:10px;background:var(--glass);border-radius:10px;border:1px solid var(--glass-border)"><strong style="color:var(--text-1)">"Zomato 450 Scapia"</strong><br><span style="color:var(--green)">→ Food · Delivery · CC</span></div>
+      <div style="padding:10px;background:var(--glass);border-radius:10px;border:1px solid var(--glass-border)"><strong style="color:var(--text-1)">"Medicine 350 SBI"</strong><br><span style="color:var(--green)">→ Medical Spends</span></div>
+    </div>
+  </div></div>
+
+  <div class="step-card" id="step-34" onclick="toggleStep(34)"><div class="step-header"><div class="step-number">34</div><div class="step-meta"><div class="step-title">✅ Test Net Worth Display</div><div class="step-desc">Verify gauge, balances, investments</div></div><div class="step-checkbox" onclick="markDone(event,34)"></div></div><div class="step-body"><p style="font-size:13px;color:var(--text-2);">Home screen should show: Net Worth ~₹11.5L, gauge bar filling, all 6 account cards scrollable horizontally, Feb spend in red, investment summary at bottom.</p></div></div>
+
+  <div class="step-card" id="step-35" onclick="toggleStep(35)"><div class="step-header"><div class="step-number">35</div><div class="step-meta"><div class="step-title">✅ Test Edit Before Save</div><div class="step-desc">Tap any field in review screen to edit</div></div><div class="step-checkbox" onclick="markDone(event,35)"></div></div><div class="step-body"><p style="font-size:13px;color:var(--text-2);">After AI parses voice, in review screen: tap Amount field → edit it → tap Category chip to change → verify changed values save correctly to Sheet.</p></div></div>
+
+  <div class="step-card" id="step-36" onclick="toggleStep(36)"><div class="step-header"><div class="step-number">36</div><div class="step-meta"><div class="step-title">✅ Test Dark/Light Theme</div><div class="step-desc">Theme persists across app restarts</div></div><div class="step-checkbox" onclick="markDone(event,36)"></div></div><div class="step-body"><div class="callout callout-info"><span class="callout-icon">🎨</span><span>Settings screen has theme toggle. Dark mode is default. Theme preference is saved to device storage and persists across restarts.</span></div></div></div>
+
+  <div class="step-card" id="step-37" onclick="toggleStep(37)"><div class="step-header"><div class="step-number">37</div><div class="step-meta"><div class="step-title">✅ Test Credit Card Bills Tab</div><div class="step-desc">Dashboard → Accounts → CC Bills section</div></div><div class="step-checkbox" onclick="markDone(event,37)"></div></div><div class="step-body"><p style="font-size:13px;color:var(--text-2);">Dashboard → Accounts tab → Credit Card Bills shows your Axis Bank ₹2,371.50 from March 4, 2026. Data from your Credit Card Bills sheet.</p></div></div>
+
+  <div class="step-card" id="step-38" onclick="toggleStep(38)"><div class="step-header"><div class="step-number">38</div><div class="step-meta"><div class="step-title">✅ Test Month Navigator</div><div class="step-desc">‹ Feb 2026 › navigates data correctly</div></div><div class="step-checkbox" onclick="markDone(event,38)"></div></div><div class="step-body"><p style="font-size:13px;color:var(--text-2);">Dashboard: tap ‹ three times → Dec 2025 → no data (shows "No expenses"). Tap › to return to Feb 2026 → data reappears.</p></div></div>
+
+  <div class="step-card" id="step-39" onclick="toggleStep(39)"><div class="step-header"><div class="step-number">39</div><div class="step-meta"><div class="step-title">✅ Test Confetti Animation</div><div class="step-desc">Success animation on expense save</div></div><div class="step-checkbox" onclick="markDone(event,39)"></div></div><div class="step-body"><p style="font-size:13px;color:var(--text-2);">Save any expense → 🎉 emoji appears, "Saved!" text scales in with spring animation, category and amount shown. Returns to idle after 2.5 seconds.</p></div></div>
+
+  <div class="step-card" id="step-40" onclick="toggleStep(40)"><div class="step-header"><div class="step-number">40</div><div class="step-meta"><div class="step-title">✅ Test Status Indicator</div><div class="step-desc">Green dot = live · Red dot = offline</div></div><div class="step-checkbox" onclick="markDone(event,40)"></div></div><div class="step-body"><p style="font-size:13px;color:var(--text-2);">Top-right of Home screen shows green "Live" dot when online. Enable Airplane Mode → turns red "Offline". Reconnect → turns green again within 5 seconds.</p></div></div>
+
+  <div class="divider"></div>
+
+  <!-- ════════════════════════════════════════════ -->
+  <!-- PHASE 4: BUILD + DEPLOY -->
+  <!-- ════════════════════════════════════════════ -->
+  <div class="phase">
+    <div class="phase-label">Phase 4 · Steps 41–50</div>
+    <div class="phase-title"><span class="phase-icon">🚀</span>Build & Deploy to Both Phones</div>
+  </div>
+
+  <div class="step-card" id="step-41" onclick="toggleStep(41)"><div class="step-header"><div class="step-number">41</div><div class="step-meta"><div class="step-title">Configure Production Keys via EAS Secrets</div><div class="step-desc">Keep API keys secure in the cloud</div></div><div class="step-checkbox" onclick="markDone(event,41)"></div></div>
+  <div class="step-body">
+    <div class="code-block"><div class="code-label"><span class="code-label-text">Terminal</span><button class="copy-btn" onclick="copyCode(event)">Copy</button></div>
+    <pre>eas secret:create --scope project --name EXPO_PUBLIC_GEMINI_API_KEY --value AIzaSyYOUR_KEY
+eas secret:create --scope project --name EXPO_PUBLIC_APPS_SCRIPT_URL --value https://script.google.com/...</pre></div>
+  </div></div>
+
+  <div class="step-card" id="step-42" onclick="toggleStep(42)"><div class="step-header"><div class="step-number">42</div><div class="step-meta"><div class="step-title">Build Android APK (FREE)</div><div class="step-desc">8–15 minutes on Expo cloud servers</div></div><div class="step-checkbox" onclick="markDone(event,42)"></div></div>
+  <div class="step-body">
+    <div class="code-block"><div class="code-label"><span class="code-label-text">Terminal</span><button class="copy-btn" onclick="copyCode(event)">Copy</button></div>
+    <pre>eas build --platform android --profile preview
+<span class="c"># "Generate a new Android Keystore?" → Y</span>
+<span class="c"># Build URL shown — monitor at expo.dev</span>
+<span class="c"># Takes 8–15 min · FREE on Expo servers</span></pre></div>
+    <div class="callout callout-info"><span class="callout-icon">📊</span><span>Monitor progress: <strong>expo.dev/accounts/YOUR_NAME/projects/adarshwallet/builds</strong></span></div>
+  </div></div>
+
+  <div class="step-card" id="step-43" onclick="toggleStep(43)"><div class="step-header"><div class="step-number">43</div><div class="step-meta"><div class="step-title">Install APK on Android</div><div class="step-desc">Download + install the built APK</div></div><div class="step-checkbox" onclick="markDone(event,43)"></div></div>
+  <div class="step-body">
+    <p style="font-size:13px;color:var(--text-2);line-height:1.7;margin-bottom:10px;">
+      1. Download APK from expo.dev → Builds<br>
+      2. Transfer to phone (email yourself, or ADB)<br>
+      3. Android Settings → Security → <strong>Unknown Sources: ON</strong><br>
+      4. Open APK → Install → Open
+    </p>
+    <div class="code-block"><div class="code-label"><span class="code-label-text">ADB Install (if connected via USB)</span><button class="copy-btn" onclick="copyCode(event)">Copy</button></div>
+    <pre>adb install ~/Downloads/AdarshWallet.apk</pre></div>
+  </div></div>
+
+  <div class="step-card" id="step-44" onclick="toggleStep(44)"><div class="step-header"><div class="step-number">44</div><div class="step-meta"><div class="step-title">iOS — Build or Use Expo Go</div><div class="step-desc">Expo Go works free · TestFlight needs Apple Dev account</div></div><div class="step-checkbox" onclick="markDone(event,44)"></div></div>
+  <div class="step-body">
+    <div class="callout callout-success"><span class="callout-icon">🍎</span><span><strong>FREE option:</strong> Expo Go on iPhone already runs your app (Steps 22-23). No build needed for personal use!</span></div>
+    <div class="callout callout-info"><span class="callout-icon">📦</span><span><strong>For distribution:</strong> <code>eas build --platform ios --profile preview</code> requires Apple Developer account ($99/yr). Use TestFlight for internal testing.</span></div>
+  </div></div>
+
+  <div class="step-card" id="step-45" onclick="toggleStep(45)"><div class="step-header"><div class="step-number">45</div><div class="step-meta"><div class="step-title">Configure Push Updates (OTA)</div><div class="step-desc">Update app JS without rebuilding APK</div></div><div class="step-checkbox" onclick="markDone(event,45)"></div></div>
+  <div class="step-body">
+    <div class="code-block"><div class="code-label"><span class="code-label-text">After any code change</span><button class="copy-btn" onclick="copyCode(event)">Copy</button></div>
+    <pre>eas update --branch preview --message "Improved AI parsing"
+<span class="c"># Users get update on next app launch — no App Store needed!</span></pre></div>
+  </div></div>
+
+  <div class="step-card" id="step-46" onclick="toggleStep(46)"><div class="step-header"><div class="step-number">46</div><div class="step-meta"><div class="step-title">Install Standalone APK & Complete Setup</div><div class="step-desc">Go through full onboarding on the APK build</div></div><div class="step-checkbox" onclick="markDone(event,46)"></div></div><div class="step-body"><p style="font-size:13px;color:var(--text-2);">Open the installed APK → Setup screen → enter your name, Script URL, Gemini key, Sheet ID → tap Launch → verify data loads from your Google Sheet.</p></div></div>
+
+  <div class="step-card" id="step-47" onclick="toggleStep(47)"><div class="step-header"><div class="step-number">47</div><div class="step-meta"><div class="step-title">Performance Check on Both Phones</div><div class="step-desc">Verify speed benchmarks</div></div><div class="step-checkbox" onclick="markDone(event,47)"></div></div>
+  <div class="step-body">
+    <div class="error-table-wrap">
+      <table>
+        <thead><tr><th>Action</th><th>Target</th><th>Check</th></tr></thead>
+        <tbody>
+          <tr><td>App launch → home</td><td>&lt; 3 seconds</td><td style="color:var(--green)">✓</td></tr>
+          <tr><td>Voice → parsed</td><td>&lt; 5 seconds</td><td style="color:var(--green)">✓</td></tr>
+          <tr><td>Charts load</td><td>&lt; 8 seconds</td><td style="color:var(--green)">✓</td></tr>
+          <tr><td>Offline save</td><td>Instant</td><td style="color:var(--green)">✓</td></tr>
+          <tr><td>Auto-sync</td><td>&lt; 5 seconds</td><td style="color:var(--green)">✓</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div></div>
+
+  <div class="step-card" id="step-48" onclick="toggleStep(48)"><div class="step-header"><div class="step-number">48</div><div class="step-meta"><div class="step-title">Error Troubleshooting Reference</div><div class="step-desc">Fix any remaining issues with this table</div></div><div class="step-checkbox" onclick="markDone(event,48)"></div></div>
+  <div class="step-body">
+    <div class="error-table-wrap">
+      <table>
+        <thead><tr><th>Error</th><th>Cause</th><th>Fix</th></tr></thead>
+        <tbody>
+          <tr><td><span class="err-msg">Network request failed</span></td><td>Different WiFi networks</td><td class="fix-text">Connect phone + computer to same WiFi</td></tr>
+          <tr><td><span class="err-msg">Apps Script 401/403</span></td><td>Access not set to "Anyone"</td><td class="fix-text">Redeploy → Who has access → Anyone</td></tr>
+          <tr><td><span class="err-msg">Gemini 400 Bad Request</span></td><td>Invalid API key</td><td class="fix-text">Check key starts with AIzaSy, no spaces</td></tr>
+          <tr><td><span class="err-msg">Gemini 429 Rate Limit</span></td><td>15 req/min exceeded</td><td class="fix-text">Wait 60 seconds, then retry</td></tr>
+          <tr><td><span class="err-msg">Sheet not found</span></td><td>Wrong tab name</td><td class="fix-text">Check SHEETS in Code.gs matches exact tab names</td></tr>
+          <tr><td><span class="err-msg">Metro ENOENT</span></td><td>Missing node_modules</td><td class="fix-text">npm install --legacy-peer-deps</td></tr>
+          <tr><td><span class="err-msg">Mic permission denied</span></td><td>Not authorized</td><td class="fix-text">Settings → AdarshWallet → Microphone → Allow</td></tr>
+          <tr><td><span class="err-msg">APK won't install</span></td><td>Unknown sources off</td><td class="fix-text">Settings → Security → Unknown Sources → ON</td></tr>
+          <tr><td><span class="err-msg">Wrong date timezone</span></td><td>UTC instead of IST</td><td class="fix-text">Add TIMEZONE: 'Asia/Kolkata' to CONFIG</td></tr>
+          <tr><td><span class="err-msg">Charts show no data</span></td><td>Empty month or wrong month</td><td class="fix-text">Add 1+ expense first, check month selector</td></tr>
+          <tr><td><span class="err-msg">QR code won't scan</span></td><td>Different networks</td><td class="fix-text">In terminal press 's', try again; or enter exp:// URL manually</td></tr>
+          <tr><td><span class="err-msg">White screen on launch</span></td><td>JS crash</td><td class="fix-text">Check terminal for red error, fix the named file</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div></div>
+
+  <div class="step-card" id="step-49" onclick="toggleStep(49)"><div class="step-header"><div class="step-number">49</div><div class="step-meta"><div class="step-title">Cost Verification — ₹0 Forever</div><div class="step-desc">All services stay within free tiers</div></div><div class="step-checkbox" onclick="markDone(event,49)"></div></div>
+  <div class="step-body">
+    <div class="cost-grid">
+      <div class="cost-card"><div class="cost-service">Expo EAS Builds</div><div class="cost-limit">30/month</div><div class="cost-price">₹0</div></div>
+      <div class="cost-card"><div class="cost-service">Apps Script</div><div class="cost-limit">6 min/day</div><div class="cost-price">₹0</div></div>
+      <div class="cost-card"><div class="cost-service">Gemini AI</div><div class="cost-limit">1M tokens/day</div><div class="cost-price">₹0</div></div>
+      <div class="cost-card"><div class="cost-service">Google Sheets</div><div class="cost-limit">300 req/min</div><div class="cost-price">₹0</div></div>
+      <div class="cost-card"><div class="cost-service">SQLite</div><div class="cost-limit">Unlimited</div><div class="cost-price">₹0</div></div>
+      <div class="cost-card" style="border-color:rgba(16,185,129,0.4);background:rgba(16,185,129,0.06)"><div class="cost-service" style="color:var(--green)">TOTAL/MONTH</div><div class="cost-limit" style="color:var(--text-1)">Everything</div><div class="cost-price">₹0</div></div>
+    </div>
+  </div></div>
+
+  <!-- FINAL STEP 50 -->
+  <div class="step-card" id="step-50" onclick="toggleStep(50)" style="border-color:rgba(16,185,129,0.2);">
+    <div class="step-header">
+      <div class="step-number" style="background:linear-gradient(135deg,#059669,var(--green))">50</div>
+      <div class="step-meta">
+        <div class="step-title">🎯 Final Checklist — Confirm Working on Both Phones</div>
+        <div class="step-desc">Check all 20 items → tap "Done ✅" → you're finished!</div>
+      </div>
+      <div class="step-checkbox" onclick="markDone(event,50)"></div>
+    </div>
+    <div class="step-body">
+      <div class="checklist-grid" id="finalChecklist">
+        <div class="check-item" onclick="toggleCheck(this)"><div class="check-box">✓</div><div class="check-text">🎤 Voice mic records audio</div></div>
+        <div class="check-item" onclick="toggleCheck(this)"><div class="check-box">✓</div><div class="check-text">🤖 AI parses "₹500 Blinkit SBI"</div></div>
+        <div class="check-item" onclick="toggleCheck(this)"><div class="check-box">✓</div><div class="check-text">✏️ Review fields are editable</div></div>
+        <div class="check-item" onclick="toggleCheck(this)"><div class="check-box">✓</div><div class="check-text">💾 Saves to Google Sheets Kharche</div></div>
+        <div class="check-item" onclick="toggleCheck(this)"><div class="check-box">✓</div><div class="check-text">🎉 Confetti animation plays</div></div>
+        <div class="check-item" onclick="toggleCheck(this)"><div class="check-box">✓</div><div class="check-text">💰 Net Worth shows ~₹11.5L</div></div>
+        <div class="check-item" onclick="toggleCheck(this)"><div class="check-box">✓</div><div class="check-text">🏦 All 6 accounts visible</div></div>
+        <div class="check-item" onclick="toggleCheck(this)"><div class="check-box">✓</div><div class="check-text">🥧 Pie chart shows Feb spend</div></div>
+        <div class="check-item" onclick="toggleCheck(this)"><div class="check-box">✓</div><div class="check-text">📈 Monthly trend line works</div></div>
+        <div class="check-item" onclick="toggleCheck(this)"><div class="check-box">✓</div><div class="check-text">‹ › Month navigator works</div></div>
+        <div class="check-item" onclick="toggleCheck(this)"><div class="check-box">✓</div><div class="check-text">✨ Gemini answers questions</div></div>
+        <div class="check-item" onclick="toggleCheck(this)"><div class="check-box">✓</div><div class="check-text">🔊 Text-to-speech reads aloud</div></div>
+        <div class="check-item" onclick="toggleCheck(this)"><div class="check-box">✓</div><div class="check-text">📴 Offline mode saves locally</div></div>
+        <div class="check-item" onclick="toggleCheck(this)"><div class="check-box">✓</div><div class="check-text">🔄 Auto-syncs on reconnect</div></div>
+        <div class="check-item" onclick="toggleCheck(this)"><div class="check-box">✓</div><div class="check-text">⚡ Live refresh every 5 seconds</div></div>
+        <div class="check-item" onclick="toggleCheck(this)"><div class="check-box">✓</div><div class="check-text">🕐 Dates show IST not UTC</div></div>
+        <div class="check-item" onclick="toggleCheck(this)"><div class="check-box">✓</div><div class="check-text">🟢 Online/offline status dot</div></div>
+        <div class="check-item" onclick="toggleCheck(this)"><div class="check-box">✓</div><div class="check-text">📱 Android APK installed</div></div>
+        <div class="check-item" onclick="toggleCheck(this)"><div class="check-box">✓</div><div class="check-text">🍎 iPhone working (Expo/TF)</div></div>
+        <div class="check-item" onclick="toggleCheck(this)"><div class="check-box">✓</div><div class="check-text">💸 Total monthly cost: ₹0</div></div>
+      </div>
+      <div style="text-align:center;margin-top:24px">
+        <button onclick="showDone()" style="padding:16px 40px;border-radius:16px;background:linear-gradient(135deg,var(--bg-mid),var(--green));color:#fff;font-size:18px;font-weight:800;border:none;cursor:pointer;font-family:'Syne',sans-serif;box-shadow:0 8px 32px rgba(16,185,129,0.3)">
+          I'm Done ✅ — Show me the finish screen!
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- Final CTA -->
+  <div class="final-cta">
+    <p style="color:var(--text-2);font-size:14px;margin-bottom:16px;font-family:'JetBrains Mono',monospace;letter-spacing:1px">ALL 50 STEPS COMPLETE</p>
+    <button class="final-btn" onclick="showDone()">
+      Done ✅ — AdarshWallet is LIVE
+    </button>
+    <p style="color:var(--text-3);font-size:12px;margin-top:16px">Android + iOS · Voice AI · Google Sheets · ₹0/month</p>
+  </div>
+
+</div><!-- end wrapper -->
+
+<script>
+// ── Stars ──────────────────────────────────────────────────
+const starsEl = document.getElementById('stars');
+for (let i = 0; i < 80; i++) {
+  const s = document.createElement('div');
+  s.className = 'star';
+  s.style.cssText = `left:${Math.random()*100}%;top:${Math.random()*100}%;--d:${2+Math.random()*4}s;--delay:${Math.random()*4}s;opacity:${0.2+Math.random()*0.5}`;
+  starsEl.appendChild(s);
+}
+
+// ── Progress ──────────────────────────────────────────────
+const completedSteps = new Set(JSON.parse(localStorage.getItem('aw_steps') || '[]'));
+const TOTAL = 50;
+
+function saveSteps() {
+  localStorage.setItem('aw_steps', JSON.stringify([...completedSteps]));
+}
+
+function buildDots() {
+  const el = document.getElementById('stepDots');
+  el.innerHTML = '';
+  for (let i = 1; i <= TOTAL; i++) {
+    const d = document.createElement('div');
+    d.className = 'step-dot' + (completedSteps.has(i) ? ' done' : '');
+    d.title = `Step ${i}`;
+    d.onclick = () => { document.getElementById(`step-${i}`)?.scrollIntoView({behavior:'smooth',block:'center'}); };
+    el.appendChild(d);
+  }
+}
+
+function updateProgress() {
+  const pct = (completedSteps.size / TOTAL) * 100;
+  document.getElementById('progressBar').style.width = pct + '%';
+  document.getElementById('progressText').textContent = `${completedSteps.size} / ${TOTAL} steps complete`;
+  buildDots();
+  // Update step cards
+  for (let i = 1; i <= TOTAL; i++) {
+    const card = document.getElementById(`step-${i}`);
+    if (!card) continue;
+    if (completedSteps.has(i)) {
+      card.classList.add('completed');
+      const num = card.querySelector('.step-number');
+      if (num) { num.textContent = '✓'; num.classList.add('step-number-done'); }
+    } else {
+      card.classList.remove('completed');
+      const num = card.querySelector('.step-number');
+      if (num && num.textContent === '✓') {
+        num.textContent = String(i).padStart(2,'0');
+        num.classList.remove('step-number-done');
+      }
+    }
+  }
+}
+
+// ── Step toggle ────────────────────────────────────────────
+function toggleStep(n) {
+  const card = document.getElementById(`step-${n}`);
+  if (card) card.classList.toggle('open');
+}
+
+function markDone(e, n) {
+  e.stopPropagation();
+  if (completedSteps.has(n)) {
+    completedSteps.delete(n);
+  } else {
+    completedSteps.add(n);
+  }
+  saveSteps();
+  updateProgress();
+}
+
+// ── Code tabs ─────────────────────────────────────────────
+function switchTab(e, group, tab) {
+  e.stopPropagation();
+  const block = e.target.closest('.code-block');
+  block.querySelectorAll('.code-tab').forEach(t => t.classList.remove('active'));
+  e.target.classList.add('active');
+  block.querySelectorAll(`.code-panel[data-group="${group}"]`).forEach(p => {
+    p.classList.toggle('active', p.dataset.tab === tab);
+  });
+}
+
+// ── Copy code ─────────────────────────────────────────────
+function copyCode(e) {
+  e.stopPropagation();
+  const pre = e.target.closest('.code-block').querySelector('pre');
+  if (!pre) return;
+  navigator.clipboard.writeText(pre.innerText).then(() => {
+    e.target.textContent = 'Copied!';
+    e.target.classList.add('copied');
+    setTimeout(() => { e.target.textContent = 'Copy'; e.target.classList.remove('copied'); }, 2000);
+  });
+}
+
+// ── Final checklist ───────────────────────────────────────
+function toggleCheck(el) {
+  el.classList.toggle('checked');
+}
+
+// ── Done screen ───────────────────────────────────────────
+function showDone() {
+  launchConfetti();
+  document.getElementById('doneScreen').classList.add('show');
+}
+function closeDone() {
+  document.getElementById('doneScreen').classList.remove('show');
+}
+
+function launchConfetti() {
+  const colors = ['#10b981','#3b82f6','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#fff'];
+  for (let i = 0; i < 120; i++) {
+    const c = document.createElement('div');
+    c.className = 'confetti-piece';
+    c.style.cssText = `
+      left:${Math.random()*100}vw;
+      top:-20px;
+      background:${colors[Math.floor(Math.random()*colors.length)]};
+      width:${6+Math.random()*10}px;
+      height:${6+Math.random()*10}px;
+      border-radius:${Math.random()>0.5?'50%':'2px'};
+      animation-duration:${2+Math.random()*2}s;
+      animation-delay:${Math.random()*0.5}s;
+    `;
+    document.body.appendChild(c);
+    setTimeout(() => c.remove(), 4000);
+  }
+}
+
+// ── Voice waveform demo ────────────────────────────────────
+const waveBarsEl = document.getElementById('waveBars');
+for (let i = 0; i < 18; i++) {
+  const b = document.createElement('div');
+  b.className = 'wave-bar';
+  b.style.cssText = `height:8px;--spd:${0.4+Math.random()*0.4}s;--delay:${Math.random()*0.3}s;--max-h:${15+Math.random()*35}px`;
+  waveBarsEl.appendChild(b);
+}
+
+let micActive = false;
+let parsedTimer = null;
+function toggleMicDemo() {
+  const btn = document.getElementById('micBtn');
+  const demo = document.getElementById('waveDemo');
+  const label = document.getElementById('waveLabel');
+  const preview = document.getElementById('parsedPreview');
+  micActive = !micActive;
+  if (micActive) {
+    btn.classList.add('listening');
+    btn.textContent = '🔴';
+    demo.classList.add('active');
+    label.textContent = 'Listening…';
+    parsedTimer = setTimeout(() => {
+      micActive = false;
+      btn.classList.remove('listening');
+      btn.textContent = '🎤';
+      demo.classList.remove('active');
+      label.textContent = 'AI parsing…';
+      setTimeout(() => {
+        label.textContent = 'Parsed ✓ (demo)';
+        preview.classList.add('show');
+      }, 1200);
+    }, 3000);
+  } else {
+    clearTimeout(parsedTimer);
+    btn.classList.remove('listening');
+    btn.textContent = '🎤';
+    demo.classList.remove('active');
+    label.textContent = 'Hold mic to demo';
+    preview.classList.remove('show');
+  }
+}
+
+// ── Init ──────────────────────────────────────────────────
+updateProgress();
+// Auto-open step 1 on first visit
+if (completedSteps.size === 0) {
+  document.getElementById('step-1')?.classList.add('open');
+}
+</script>
+</body>
+</html>

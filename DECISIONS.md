@@ -28,8 +28,40 @@ Decisions are logged here with date and rationale. Never delete old entries — 
 
 ---
 
-## ADR-004 — UUID primary keys (not sequential integers)
-**Date:** 2026-03-28
-**Decision:** Use UUID as default PK type (Supabase default).
-**Rationale:** Avoids sequential ID enumeration, works well with Supabase Row Level Security, future-proof for distributed systems.
-**Consequences:** Slightly larger storage; UUIDs not human-readable. Trade-off is acceptable.
+## ADR-004 — Human-readable row_id (not UUID)
+**Date:** 2026-03-28 (supersedes original UUID proposal, from architecture_v2.md D07)
+**Decision:** Use prefixed sequential ID format: `KHR-u001-0047`, `CCB-u001-0003`, `ADH-u001-0012`.
+**Rationale:** Human-readable, user-scoped, sequential, debuggable. Easy to reference in Edit Log, session state, and user-facing delete/edit commands. UUID is anonymous — useless when debugging "delete that" commands.
+**Consequences:** Requires row_id generation utility (`rowId.js`). Must be generated server-side, not DB-generated.
+
+---
+
+## ADR-005 — EAV Long-Table format for Dropdown Lists (supersedes paired-column)
+**Date:** 2026-03-28 (from architecture_v2.md section 4.2)
+**Decision:** Migrate Dropdown Lists from paired-column format to EAV (Entity-Attribute-Value) long-table.
+**Rationale:** Current paired-column format is AI-unsafe — appending a new category requires knowing the correct row position. Any row inserted out of sequence corrupts the pairing. EAV format is append-safe: any new row can be added without affecting any existing row. Upsert key: `(user_id, item_type, item_name, item_value)`.
+**Consequences:** Phase 1 migration task. Apps Script getCache() must be updated to read EAV format. New item_types added: AppMapping, DefaultAccount.
+
+---
+
+## ADR-006 — Soft deletes only, no hard deletes
+**Date:** 2026-03-28 (from architecture_v2.md D03)
+**Decision:** All deletes are soft: `is_deleted = TRUE`. No `DELETE FROM` ever executed on financial data.
+**Rationale:** Financial data is permanent. Same principle as bank ledger entries. Enables full audit trail and debugging.
+**Consequences:** All SUMIFS and API queries must add `WHERE is_deleted = FALSE` condition.
+
+---
+
+## ADR-007 — user_id from day one (WhatsApp phone number)
+**Date:** 2026-03-28 (from architecture_v2.md D02, D15)
+**Decision:** All tables have user_id from first row, populated with WhatsApp phone number.
+**Rationale:** Zero migration cost when Phase 5 (multi-user) starts. All queries already filter by user_id.
+**Consequences:** Requires populating existing rows in Phase 1 migration.
+
+---
+
+## ADR-008 — Services are swappable (sheetsService → supabaseService)
+**Date:** 2026-03-28 (from architecture_v2.md Section 5.1)
+**Decision:** Each external integration is one file with identical function signatures. Swapping implementations requires changing one file and one config value. Nothing else changes.
+**Rationale:** Enables zero-downtime Sheets → Supabase migration in Phase 4.
+**Consequences:** Service files must maintain consistent function signatures.

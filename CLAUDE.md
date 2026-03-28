@@ -11,8 +11,10 @@ Personal finance tracker: log daily expenses, credit card payments, transfers, a
 
 - `RULEBOOK.md` — product rules, naming conventions, AI tool assignments
 - `STATE.md` — what's done, what's in progress, what's next, open questions
-- `docs/schema/` — database schema (Supabase-ready SQL)
-- `docs/design/` — design documents and architecture
+- `NAMING.md` — all naming conventions (files, DB, code, UI, git)
+- `docs/design/architecture_v2.md` — **CRITICAL: complete locked architecture spec** (5 phases, full schema, 15 decisions, 18 risks, Supabase migration plan)
+- `docs/schema/schema_v1.md` — Supabase-ready SQL DDL for all 8 tables
+- `JOURNEY.md` — project history (useful for understanding context)
 
 ---
 
