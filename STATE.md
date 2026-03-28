@@ -1,6 +1,6 @@
 # State — Net Worth Calculator
 
-**Last updated:** 2026-03-28
+**Last updated:** 2026-03-29
 **Current phase:** Phase 1 — Google Sheets Migration
 
 ---
@@ -36,6 +36,9 @@
 - [x] DECISIONS.md — 8 ADRs logged
 - [x] Pushed to GitHub: https://github.com/golaitadarsh/Net-Worth-Calculator
 - [x] `docs/design/formula_audit.md` — Complete formula audit of live Google Sheet (all 6 tabs, every formula, cross-sheet refs, SQL equivalents)
+- [x] `docs/design/er_diagram.md` upgraded to **v2.2** — 6 critical faults fixed (opening_balance, cash in net worth, income_entries, brokerage as expense, net_worth_snapshots FK, full test suite 11 cases)
+- [x] `docs/schema/schema_v2.md` upgraded to **v2.2** — 13 tables (income_entries added, opening_balance on accounts, account_id FK on net_worth_snapshots)
+- [x] `docs/design/gemini_er_prompt.md` — Prompt for Gemini to visualise ER diagram + test cases + dbdiagram.io instructions
 
 ---
 
@@ -68,8 +71,8 @@
 - Splitwise integration: first-class account type with its own UI flow, or generic account? (decide before Phase 3)
 - ~~Which specific Google Sheet URL is the live working sheet? (needed for Sheets MCP)~~ **RESOLVED:** https://docs.google.com/spreadsheets/d/1le4JT-4he0jGFlxTwn63ZGsiZfWrVZSyFbkcPsmsm7s
 - Phase 3 dashboard: fresh Lovable scaffold vs porting AdarshWallet React Native code?
-- F9 Net Worth formula excludes Cash Payment (F2) — is this intentional? (found in formula audit)
-- Investment totals (row 11) exclude Brokerage and Profit Booking rows (9-10) — confirm intent
+- ~~F9 Net Worth formula excludes Cash (F2)~~ **RESOLVED: BUG confirmed. Cash IS included in v2.2 schema and net worth calc.**
+- ~~Investment totals exclude Brokerage~~ **RESOLVED: Brokerage = expense (transactions table). Profit Booking = deferred ADR.**
 
 ---
 
@@ -83,8 +86,9 @@
 | `DECISIONS.md` | Architecture decision log (ADRs) |
 | `docs/PRD.md` | Product requirements (locked for Phase 0–2) |
 | `docs/design/architecture_v2.md` | Full architecture spec (most important reference) |
-| `docs/design/er_diagram.md` | Mermaid ER diagram (10 tables) |
-| `docs/schema/schema_v2.md` | Final target SQL DDL (run this in Supabase Phase 2) |
+| `docs/design/er_diagram.md` | Mermaid ER diagram v2.2 (13 tables, all test cases) |
+| `docs/design/gemini_er_prompt.md` | Paste into Gemini to visualise ER. Also has dbdiagram.io instructions. |
+| `docs/schema/schema_v2.md` | Final target SQL DDL v2.2 (run this in Supabase Phase 2) |
 | `sheets/migration/phase1_checklist.md` | 19-task migration checklist |
 | `sheets/Code.gs` | AppScript v5.0.0 FINAL (current live code) |
 | `docs/design/formula_audit.md` | Complete formula audit of live Google Sheet |

@@ -1,21 +1,18 @@
-# Database Schema — Net Worth Calculator v2.1
+# Database Schema — Net Worth Calculator v2.2
 
-**Version:** 2.1 (Deep-analysis fixes over v2.0)
+**Version:** 2.2 (Formula audit + industry-standard fixes over v2.1)
 **Status:** Designed, not yet deployed
 **Target:** Supabase PostgreSQL (Phase 2)
 **Region:** Singapore (lowest latency from India)
 
-**Why v2.1 over v2.0:** 10 gaps found after full read of Code.gs (1,397 lines) and running 10 test cases:
-- Added `application TEXT` to transactions (payment app is separate from bank account)
-- Fixed `transfers.from_account_id` → nullable (Dividend/Refund/Cashback are not accounts)
-- Added `from_source_type TEXT` to transfers
-- Added `confirmed BOOLEAN` to edit_log (was in architecture spec, missing from schema)
-- Fixed `edit_log.source` enum to match architecture (whatsapp_bot, direct_sheet, browser_voice)
-- Added `net_worth_snapshots` table (Overall sheet equivalent for historical sparkline)
-- Added `pending_entries` table (voice entries awaiting Y/N, 10-min TTL)
-- Added buffer CHECK constraint (`< 1000`)
-- Added CC paid_from type constraint guidance
-- Total: 12 tables (was 10)
+**Why v2.2 over v2.1:** 6 critical faults fixed after cell-by-cell formula_audit.md analysis:
+- CRITICAL: Added `opening_balance` + `opening_balance_date` + `include_in_net_worth` to accounts
+- CRITICAL: Cash (type=cash) is now INCLUDED in net worth — was excluded (confirmed sheet bug)
+- CRITICAL: Added `income_entries` table — salary was stored in Overall sheet cols H-K, invisible to DB
+- HIGH: Brokerage removed from investment_snapshots scope — it's an expense, goes to transactions
+- HIGH: Added `account_id UUID FK` to net_worth_snapshots (was only account_name text)
+- HIGH: `pending_entries.entry_type` now includes 'income' (salary via voice)
+- Total: 13 tables (was 12)
 
 ---
 
@@ -59,16 +56,22 @@ CREATE INDEX idx_categories_parent ON categories(parent_id) WHERE parent_id IS N
 
 ### 3. accounts
 ```sql
+-- v2.2: Added opening_balance, opening_balance_date, include_in_net_worth
+-- opening_balance seeds from hardcoded values in Overall sheet col B
+-- Cash Payment IS included in net worth (was erroneously excluded in sheet bug F9)
 CREATE TABLE accounts (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id     UUID NOT NULL REFERENCES users(id),
-  parent_id   UUID REFERENCES accounts(id),       -- NULL = top-level account group
-  name        TEXT NOT NULL,
-  type        TEXT NOT NULL CHECK (type IN (
-                'cash', 'savings', 'credit', 'investment', 'wallet', 'other'
-              )),
-  is_active   BOOLEAN NOT NULL DEFAULT TRUE,
-  created_at  TIMESTAMPTZ DEFAULT now(),
+  id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id               UUID NOT NULL REFERENCES users(id),
+  parent_id             UUID REFERENCES accounts(id),       -- NULL = top-level account group
+  name                  TEXT NOT NULL,
+  type                  TEXT NOT NULL CHECK (type IN (
+                          'cash', 'savings', 'credit', 'investment', 'wallet', 'other'
+                        )),
+  opening_balance       NUMERIC(12,2) NOT NULL DEFAULT 0.00,  -- v2.2: seed from Overall sheet B col
+  opening_balance_date  DATE,                                  -- v2.2: date seed balance applies from
+  include_in_net_worth  BOOLEAN NOT NULL DEFAULT TRUE,         -- v2.2: cash=TRUE (sheet bug fixed)
+  is_active             BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at            TIMESTAMPTZ DEFAULT now(),
 
   UNIQUE (user_id, name, parent_id)
 );
@@ -77,20 +80,24 @@ CREATE INDEX idx_accounts_user   ON accounts(user_id) WHERE is_active = TRUE;
 CREATE INDEX idx_accounts_parent ON accounts(parent_id) WHERE parent_id IS NOT NULL;
 ```
 
-**Account seed data (from live sheet):**
+**Account seed data (from live sheet — v2.2: includes opening_balance):**
 ```
-Cash Payment           → type=cash
-UPI/Bank Accounts      → type=savings (parent)
-  Axis Bank            → type=savings
-  State Bank of India  → type=savings
-  Amazon Pay           → type=wallet
-  Groww Account        → type=wallet
-Credit Card            → type=credit (parent)
-  Axis Bank CC         → type=credit
-  ICICI                → type=credit
-  Scapia               → type=credit
-Investments            → type=investment (no sub-accounts)
-Splitwise              → type=other (running receivable balance)
+Cash Payment           → type=cash,       opening_balance=2080.00,       include_in_net_worth=TRUE
+UPI/Bank Accounts      → type=savings,    opening_balance=0,              parent group only
+  Axis Bank            → type=savings,    opening_balance=564507.85,      include_in_net_worth=TRUE
+  State Bank of India  → type=savings,    opening_balance=11835.00,       include_in_net_worth=TRUE
+  Amazon Pay           → type=wallet,     opening_balance=271.66,         include_in_net_worth=TRUE
+  Groww Account        → type=wallet,     opening_balance=0,              include_in_net_worth=TRUE
+Credit Card            → type=credit,     opening_balance=0,              parent group only
+  Axis Bank CC         → type=credit,     opening_balance=0,              include_in_net_worth=TRUE
+  ICICI                → type=credit,     opening_balance=0,              include_in_net_worth=TRUE
+  Scapia               → type=credit,     opening_balance=0,              include_in_net_worth=TRUE
+Investments            → type=investment, opening_balance=348935.00,      include_in_net_worth=TRUE
+Splitwise              → type=other,      opening_balance=116146.39,      include_in_net_worth=TRUE
+
+NOTE: Axis Bank opening_balance=564507.85 is the hardcoded base from Overall!B3
+The SUM(K2:K16) salary component from Overall!B3 is migrated to income_entries table.
+Cash Payment opening_balance=2080 from Overall!B2 — NOW INCLUDED in net worth (v2.2 bug fix).
 ```
 
 ### 4. app_mappings
@@ -123,7 +130,36 @@ Default CC     → Scapia
 Default Cash   → Cash Payment
 ```
 
-### 5. transactions
+### 5. income_entries (NEW in v2.2)
+```sql
+-- v2.2: New table. Replaces salary stored in Overall sheet cols H-K.
+-- Covers salary, freelance, interest, and other income types.
+-- Credited to a specific account (e.g., salary → Axis Bank).
+CREATE TABLE income_entries (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id     UUID NOT NULL REFERENCES users(id),
+  date        DATE NOT NULL,
+  type        TEXT NOT NULL DEFAULT 'salary'
+                CHECK (type IN ('salary', 'freelance', 'interest', 'other')),
+  particulars TEXT,                               -- e.g. "February 2026 Salary"
+  account_id  UUID NOT NULL REFERENCES accounts(id), -- which account received the money
+  amount      NUMERIC(12,2) NOT NULL CHECK (amount > 0),
+  raw_input   TEXT,
+  is_deleted  BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at  TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX idx_income_entries_user_date ON income_entries(user_id, date DESC)
+  WHERE is_deleted = FALSE;
+```
+
+**Income seed data (from Overall sheet salary section H-K):**
+```
+2026-02-27 | salary | February 2026 Salary | Axis Bank | 111559.00
+-- Additional rows from Overall!K2:K16 to be migrated in Phase 2
+```
+
+### 6. transactions
 ```sql
 -- v2.1 fix: added `application TEXT` (was missing — Kharche col G is payment app, not bank)
 CREATE TABLE transactions (
@@ -239,18 +275,21 @@ CREATE TABLE investment_snapshots (
 CREATE INDEX idx_investments_user_date ON investment_snapshots(user_id, snapshot_date DESC);
 ```
 
-### 9. net_worth_snapshots (NEW in v2.1)
+### 9. net_worth_snapshots (v2.2: added account_id FK)
 ```sql
 -- v2.1: New table. Equivalent of Overall sheet in Google Sheets.
+-- v2.2 fix: Added account_id FK (was only account_name text — lost referential integrity)
 -- Captures monthly point-in-time balance per account for sparkline/trend charts.
 -- Populated by a scheduled job or on-demand when user views dashboard.
+-- Cash accounts ARE included (include_in_net_worth = TRUE).
 CREATE TABLE net_worth_snapshots (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id         UUID NOT NULL REFERENCES users(id),
   snapshot_date   DATE NOT NULL,                  -- first of month
+  account_id      UUID NOT NULL REFERENCES accounts(id),  -- v2.2: FK added
   account_name    TEXT NOT NULL,                  -- denormalised: stored as text for historical accuracy
-  balance         NUMERIC(12,2),
-  total_net_worth NUMERIC(12,2),                  -- sum of all account balances this month
+  balance         NUMERIC(12,2),                  -- includes cash
+  total_net_worth NUMERIC(12,2),                  -- sum of ALL accounts this month (includes cash)
   created_at      TIMESTAMPTZ DEFAULT now()
 );
 
@@ -378,13 +417,14 @@ CREATE POLICY "Own categories write" ON categories FOR INSERT
 
 ## Dashboard Query Examples
 
-**Net worth (sum of account balances via latest snapshot):**
+**Net worth (sum of account balances via latest snapshot — v2.2: cash included):**
 ```sql
 SELECT total_net_worth
 FROM net_worth_snapshots
 WHERE user_id = $1
 ORDER BY snapshot_date DESC
 LIMIT 1;
+-- total_net_worth includes cash accounts (include_in_net_worth = TRUE for all accounts including cash)
 ```
 
 **CC outstanding per card:**
@@ -439,6 +479,7 @@ LIMIT 12;
 
 ---
 
-*Net Worth Calculator Schema v2.1 · March 2026*
-*Updated after deep analysis of Code.gs (v5.0.0, 1,397 lines) + 10 test cases run against schema*
+*Net Worth Calculator Schema v2.2 · March 2026*
+*Updated after formula_audit.md cell-by-cell analysis + Code.gs v5.0.0 (1,397 lines)*
+*Key fixes: opening_balance added to accounts, cash included in net worth, income_entries table added, net_worth_snapshots FK fixed, brokerage documented as expense-only*
 *Run this DDL in Supabase SQL editor during Phase 2.*

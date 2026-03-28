@@ -1,30 +1,89 @@
-# ER Diagram — Net Worth Calculator v2.1
+# ER Diagram — Net Worth Calculator v2.2
 
-**Version:** 2.1 (Deep-analysis refinement over v2.0)
-**Analysis basis:** Full read of Code.gs (1,397 lines), architecture_v2.md (18 risks, 15 decisions), live sheet data (₹10,98,208 net worth snapshot)
-**Renders in:** GitHub (Mermaid), VS Code with Mermaid plugin
-**Industry-format DBML:** See bottom of this file (paste into dbdiagram.io)
-
----
-
-## 10 Gaps Found vs v2.0 — All Fixed Here
-
-| # | Gap | Where found | Fix in v2.1 |
-|---|-----|------------|------------|
-| G1 | `transactions` missing `application` field | Code.gs col G = payment app (Paytm, GPay). Different from account_id. | Added `application TEXT` to transactions |
-| G2 | `transfers.from_account_id` FK breaks for Dividend/Refund/Cashback | Code.gs Adhoc From list has "Dividend", "Refund" etc — not accounts | Made `from_account_id` nullable + added `from_source_type TEXT` |
-| G3 | `edit_log` missing `confirmed` field | architecture_v2.md §4.7 explicitly lists `confirmed BOOLEAN DEFAULT TRUE` | Added `confirmed BOOLEAN DEFAULT TRUE` to edit_log |
-| G4 | `edit_log.source` enum wrong | Architecture: "whatsapp_bot\|direct_sheet\|api\|migration". Schema had "voice\|manual" | Fixed enum to match architecture + added "browser_voice" |
-| G5 | Missing `net_worth_snapshots` table | architecture_v2.md §4.1: Overall sheet → `net_worth_snapshots`. Dashboard sparkline needs it | Added `net_worth_snapshots` table |
-| G6 | Missing `pending_entries` table | architecture_v2.md §5.2: sessionStore holds unconfirmed voice entries (10-min TTL) | Added `pending_entries` table (survives server restarts) |
-| G7 | CC paid_from constraint absent | Code.gs `setupCCBills()` uses ONLY `accMap['UPI/Bank Accounts']` for B. Cash/CC excluded | Added note + `paid_from_type` constraint guidance |
-| G8 | Adhoc buffer has no range guard | Buffer column meant for rounding (<₹1 typically). No constraint prevents misuse | Added CHECK constraint `buffer < 1000` |
-| G9 | `app_mappings` used for AI inference but no link back to transaction | AppMapping resolves Paytm→SBI, but resolved account_id was stored, not the app name | `transactions.application` stores raw app name; `app_mappings` links to account_id |
-| G10 | `investment_snapshots` not in edit_log scope | Architecture edit_log covers Kharche/CC/Adhoc. Investments are monthly snapshots — if edited, no audit trail | Added note + recommended audit pattern for investments |
+**Version:** 2.2 — Industry-standard audit over v2.1
+**Analysis basis:** Full read of Code.gs (1,397 lines), formula_audit.md (cell-by-cell), architecture_v2.md, schema_v2.md
+**Renders in:** GitHub (Mermaid block), VS Code (Mermaid plugin)
+**Visual diagram:** See `docs/design/gemini_er_prompt.md` — paste that prompt into Gemini to get a visual
 
 ---
 
-## Mermaid ER Diagram (11 tables)
+## What Changed: v2.1 → v2.2 (6 Critical Faults Fixed)
+
+| # | Fault | Severity | Fix |
+|---|-------|----------|-----|
+| F1 | `accounts` had no `opening_balance` | **CRITICAL** | Added `opening_balance NUMERIC(12,2)` — without this, no account balance can be computed from DB alone |
+| F2 | Cash excluded from net worth | **CRITICAL** | Confirmed bug in formula_audit: `F9=Sum(F3:F8)` skips F2 (Cash). Removed cash exclusion from all net worth queries. |
+| F3 | No salary/income table | **CRITICAL** | Added `income_entries` table — salary was stored in Overall sheet cols H-K, invisible to DB |
+| F4 | Brokerage wrongly in `investment_snapshots` scope | **HIGH** | Brokerage = pure expense → goes to `transactions`. `investment_snapshots` tracks only investable capital types. |
+| F5 | `net_worth_snapshots.account_name TEXT` — no FK | **HIGH** | Changed to `account_id UUID FK` + kept `account_name TEXT` for denorm (historical name at snapshot time) |
+| F6 | `investment_snapshots.new_amount` duplicates `transactions` | **MEDIUM** | Kept for compatibility but added note: `new_amount` = sum of Kharche rows with Category=Investments for that month. Should be computed, not stored twice. In Phase 2, drop this column; use a VIEW instead. |
+
+---
+
+## Full Architecture Fault Log (Sheet → DB mapping)
+
+### CRITICAL
+
+**F1 — Missing opening_balance in accounts**
+- Sheet: Overall col B has hardcoded starting balances (B2=₹2,080 Cash, B3=₹5,64,507+salary Axis, B4=₹11,835 SBI, etc.)
+- Current schema: `accounts` table has NO `opening_balance` field
+- Effect: If you try to compute Axis Bank current balance in the DB, you get only the delta — the ₹5,64,507 seed is lost forever
+- Fix: `accounts.opening_balance NUMERIC(12,2) DEFAULT 0.00` + `opening_balance_date DATE`
+
+**F2 — Cash excluded from net worth (CONFIRMED BUG)**
+- Sheet: Overall `F9=Sum(F3:F8)` — starts at F3, skips F2 (Cash Payment row)
+- formula_audit.md confirms: "BUG — confirmed by user: Cash Payment SHOULD be included in Net Worth"
+- Current schema net worth SQL: `WHERE a.name != 'Cash Payment'` — copies the bug into DB
+- Fix: Remove exclusion. Cash is a real account. Include in ALL net worth calculations.
+
+**F3 — Salary stored in Overall sheet, not a proper table**
+- Sheet: Overall cols H-K rows 2-16 store salary date + month + amount (hardcoded)
+- B3 formula = `564507.85 + SUM(K2:K16)` — breaks silently if salary grows past row 16
+- Effect: Salary is invisible to the DB. Can't run income vs. expense analytics.
+- Fix: `income_entries` table with `type='salary'` + Axis Bank account_id
+
+**F4 — Brokerage included in investment types (should be expense)**
+- Sheet: Actual Investments row 9 = "Brokerage", row 10 = "Profit Booking - Equity Stocks"
+- formula_audit.md: "Row 11 totals use C3:C8 — excludes rows 9-10 (Brokerage, Profit Booking). INTENTIONAL."
+- Brokerage = fee paid when buying/selling shares = expense, not investment capital
+- Fix: Brokerage → `transactions` table, category="Brokerage" (expense). NOT in `investment_snapshots`.
+- Profit Booking = deferred design decision (user confirmed, handle separately in a future ADR)
+
+### HIGH
+
+**F5 — net_worth_snapshots stores account name as text**
+- Problem: If user renames an account, all historical snapshots become orphaned
+- Fix: Add `account_id UUID FK` to `net_worth_snapshots`. Keep `account_name TEXT` as denorm-at-snapshot-time.
+
+**F6 — investment_snapshots.new_amount duplicates transactions**
+- `new_amount` = new money added this month = same as `SUM(transactions) WHERE category=Investments AND month=X`
+- Two sources of truth for same number = drift risk
+- Fix (Phase 2): Make `new_amount` a computed view column, not a stored column
+
+**F7 — AppScript G column stores sub-account name, not the app**
+- Code.gs v5.0.0 uses the same `accMap` for both F (Account-Subcategory) and G (Application)
+- G column is supposed to store "Paytm, GPay" but currently stores sub-account name (Axis Bank, SBI)
+- Current schema assumes G = payment app. Actually G = sub-account name until Phase 1 migration.
+- Fix: Phase 1 Task — rewrite AppScript to populate G from AppMappings, not accMap
+
+### MEDIUM
+
+**F8 — No constraint that from_account_id != to_account_id when types differ**
+- Current: only checks same account. Should also prevent credit card → credit card type transfers.
+
+**F9 — CC cashback uses fragile string match "Cashback" in from column**
+- Sheet: Adhoc/Self Transfer col B="Cashback" triggers cashback formula in Overall
+- In DB: should be `transfers.transfer_type = 'cashback'` with `from_source_type = 'cashback'`
+- Already handled in v2.1 but worth noting explicitly
+
+**F10 — Monthly Analytics date range references Overall's own salary columns (self-reference)**
+- B21 formula: `=SUMIFS($K:$K, $J:$J, ">="&$A21, ...)` — references Overall's own J and K columns
+- This is a circular dashboard reference that has no clean SQL equivalent
+- Fix in DB: `income_entries` table removes this self-reference entirely
+
+---
+
+## 13-Table ER Diagram (Mermaid)
 
 ```mermaid
 erDiagram
@@ -56,16 +115,32 @@ erDiagram
         uuid parent_id FK "NULL = top-level group (UPI/Bank Accounts)"
         text name "Axis Bank, SBI, Scapia, Splitwise"
         text type "cash|savings|credit|investment|wallet|other"
+        numeric opening_balance "v2.2 CRITICAL FIX: was missing. Seed from sheet B col"
+        date opening_balance_date "date the opening balance applies from"
         bool is_active
+        bool include_in_net_worth "TRUE for all except pure-tracking accounts"
         timestamptz created_at
     }
 
     APP_MAPPINGS {
         uuid id PK
         uuid user_id FK
-        text app_name "Paytm, GPay, PhonePe, Swiggy, Amazon Pay app"
+        text app_name "Paytm, GPay, PhonePe, Swiggy, Amazon Pay"
         uuid account_id FK "which bank/CC this app draws from"
         bool is_active
+        timestamptz created_at
+    }
+
+    INCOME_ENTRIES {
+        uuid id PK
+        uuid user_id FK
+        date date "when income was received"
+        text type "salary | freelance | interest | other"
+        text particulars "e.g. Feb 2026 Salary"
+        uuid account_id FK "which account received the income"
+        numeric amount "CHECK amount > 0"
+        text raw_input "NULL for manual entry"
+        bool is_deleted
         timestamptz created_at
     }
 
@@ -89,8 +164,8 @@ erDiagram
         uuid id PK
         uuid user_id FK
         date date
-        uuid paid_from_account_id FK "ONLY savings/wallet accounts. NOT credit/investment"
-        uuid credit_card_account_id FK "ONLY credit type accounts"
+        uuid paid_from_account_id FK "ONLY type: savings | wallet | cash"
+        uuid credit_card_account_id FK "ONLY type: credit"
         numeric amount "CHECK amount > 0"
         text raw_input
         bool is_deleted
@@ -118,11 +193,11 @@ erDiagram
         uuid id PK
         uuid user_id FK
         date snapshot_date "ALWAYS first of month (2026-03-01)"
-        uuid category_id FK "Equity Stocks, SIP, Mutual Funds, NPS, FD, Brokerage, IPO"
-        numeric initial_amount "value at month start"
-        numeric new_amount "new money added this month"
+        uuid category_id FK "Equity Stocks|SIP|Mutual Funds|NPS|FD|IPO only. NOT Brokerage."
+        numeric initial_amount "value at month start (carried from last month total)"
+        numeric new_amount "new money added. PHASE 2: replace with computed VIEW"
         numeric total "GENERATED: initial_amount + new_amount"
-        numeric target_amount "user-set goal"
+        numeric target_amount "user-set goal. optional"
         timestamptz created_at
     }
 
@@ -130,9 +205,10 @@ erDiagram
         uuid id PK
         uuid user_id FK
         date snapshot_date "first of month"
-        text account_name "denormalised for history"
-        numeric balance "computed balance at that point in time"
-        numeric total_net_worth "sum across all accounts for this month"
+        uuid account_id FK "v2.2 FIX: was missing FK. Added for integrity."
+        text account_name "v2.2: kept for historical denorm (account may be renamed)"
+        numeric balance "computed balance at snapshot_date"
+        numeric total_net_worth "sum across ALL accounts for this month. Includes cash."
         timestamptz created_at
     }
 
@@ -142,7 +218,7 @@ erDiagram
         text channel "whatsapp | browser_voice"
         text raw_input "verbatim transcript"
         jsonb parsed_json "LLM output awaiting confirmation"
-        text entry_type "transaction | cc_payment | transfer"
+        text entry_type "transaction | cc_payment | transfer | income"
         timestamptz expires_at "created_at + 10 minutes"
         bool is_expired "TRUE after TTL"
         timestamptz created_at
@@ -163,9 +239,9 @@ erDiagram
         timestamptz timestamp
         text source "whatsapp_bot | browser_voice | direct_sheet | api | migration"
         text action "INSERT | UPDATE | SOFT_DELETE | UPSERT"
-        text table_name "transactions | cc_payments | transfers | investment_snapshots | categories"
+        text table_name "transactions | cc_payments | transfers | investment_snapshots | income_entries | categories"
         uuid record_id "UUID of affected row"
-        text field_changed "field name. NULL for INSERT (full row captured in new_value)"
+        text field_changed "field name. NULL for INSERT"
         text old_value "NULL for INSERT"
         text new_value "full JSON for INSERT; changed field value for UPDATE"
         text raw_input "verbatim transcript for voice. NULL for manual"
@@ -175,7 +251,8 @@ erDiagram
     USERS ||--o{ CATEGORIES : "creates personal"
     USERS ||--o{ ACCOUNTS : "owns"
     USERS ||--o{ APP_MAPPINGS : "configures"
-    USERS ||--o{ TRANSACTIONS : "logs"
+    USERS ||--o{ INCOME_ENTRIES : "logs salary"
+    USERS ||--o{ TRANSACTIONS : "logs expenses"
     USERS ||--o{ CC_PAYMENTS : "logs"
     USERS ||--o{ TRANSFERS : "logs"
     USERS ||--o{ INVESTMENT_SNAPSHOTS : "tracks monthly"
@@ -189,292 +266,280 @@ erDiagram
 
     CATEGORIES ||--o{ TRANSACTIONS : "categorises"
     ACCOUNTS ||--o{ TRANSACTIONS : "paid_via"
+    ACCOUNTS ||--o{ INCOME_ENTRIES : "credited_to"
     ACCOUNTS ||--o{ APP_MAPPINGS : "mapped_from_app"
     ACCOUNTS ||--o{ CC_PAYMENTS : "paid_from_bank"
     ACCOUNTS ||--o{ CC_PAYMENTS : "clears_card"
     ACCOUNTS ||--o{ TRANSFERS : "from_account"
     ACCOUNTS ||--o{ TRANSFERS : "to_account"
+    ACCOUNTS ||--o{ NET_WORTH_SNAPSHOTS : "snapshot_account"
     CATEGORIES ||--o{ INVESTMENT_SNAPSHOTS : "fund_type"
     CATEGORIES ||--o{ BUDGETS : "budgeted_for"
 ```
 
 ---
 
-## Test Cases — Schema Validation
+## Test Cases — All Entries Validated
 
-### ✅ Test 1: Standard Expense (Voice, Happy Path)
+### ✅ Test 1: Standard Expense (Voice, Paytm, Happy Path)
 
 **Input:** "Aaj 340 rupaye medicines ke liye diye Paytm se"
 
-**LLM parse output:**
-```json
-{
-  "date": "2026-03-28",
-  "particulars": "Medicines",
-  "category": "Medical Spends",
-  "account": "UPI/Bank Accounts → State Bank of India (SBI)",
-  "application": "Paytm",
-  "amount": 340.00,
-  "transaction_type": "expense"
-}
-```
-
-**AppMapping lookup:** Paytm → State Bank of India (SBI) ✅
+**Flow:**
+1. `pending_entries` written immediately with `entry_type='transaction'`
+2. User confirms → written to `transactions`
+3. `edit_log` appended
 
 **Rows written:**
 
-`pending_entries` (immediately on parse):
+`transactions`:
 ```
-channel="whatsapp", entry_type="transaction",
-parsed_json=<above JSON>, expires_at=now()+10min
-```
-
-`transactions` (on user confirms Y):
-```
-category_id → [Medical Spends uuid]
-account_id  → [State Bank of India (SBI) uuid]
-application → "Paytm"   ← G6 fix: this field now exists
-amount      → 340.00
+date            → 2026-03-28
+particulars     → "Medicines"
+category_id     → [Medical Spends uuid]
+account_id      → [State Bank of India (SBI) uuid]   ← resolved via app_mappings: Paytm→SBI
+application     → "Paytm"
+amount          → 340.00
 transaction_type → "expense"
-raw_input   → "Aaj 340 rupaye medicines ke liye diye Paytm se"
+raw_input       → "Aaj 340 rupaye medicines ke liye diye Paytm se"
 ```
 
-`edit_log` (on write):
-```
-source="whatsapp_bot", action="INSERT",
-table_name="transactions", confirmed=TRUE,
-new_value=<full JSON of the transaction row>
-```
-
-**Net worth impact:** State Bank of India (SBI) balance decreases by ₹340
+**Balance impact:** SBI balance decreases ₹340
+**Net worth impact:** Decreases ₹340
 
 ---
 
-### ✅ Test 2: CC Bill Payment
+### ✅ Test 2: Cash Expense
+
+**Input:** "Paid 80 rupees cash for tea"
+
+`transactions`:
+```
+account_id      → [Cash Payment uuid]   ← type=cash, IS included in net worth
+application     → NULL
+amount          → 80.00
+```
+
+**v2.2 note:** Cash expenses DO reduce net worth. The sheet bug (F9 skipping cash) is a bug, now fixed.
+
+---
+
+### ✅ Test 3: Salary Income
+
+**Input:** "Received 1,11,559 salary for February"
+
+`income_entries`:
+```
+date       → 2026-02-27
+type       → "salary"
+particulars → "February 2026 Salary"
+account_id → [Axis Bank uuid]
+amount     → 111559.00
+```
+
+**Balance impact:** Axis Bank balance increases ₹1,11,559
+**Net worth impact:** Increases ₹1,11,559
+**Previously:** This went into a hardcoded cell in Overall sheet. Now it's a proper DB row.
+
+---
+
+### ✅ Test 4: CC Bill Payment
 
 **Input:** "Paid Axis CC bill ₹2,371 from Axis Bank"
 
-**Rows written:**
-
 `cc_payments`:
 ```
-paid_from_account_id  → [Axis Bank uuid]         (type=savings ✅)
-credit_card_account_id → [Axis Bank CC uuid]      (type=credit ✅)
-amount → 2371.00
+paid_from_account_id    → [Axis Bank uuid]          (type=savings ✅)
+credit_card_account_id  → [Axis Bank CC uuid]        (type=credit ✅)
+amount                  → 2371.00
 ```
 
-**Constraint check:**
-- `paid_from` = Axis Bank → type=savings → ✅ valid
-- `credit_card` = Axis Bank CC → type=credit → ✅ valid
-- `paid_from` ≠ `credit_card` → ✅ (prevents paying CC with same CC)
-
-**Net worth impact:** Axis Bank balance −2371, CC outstanding −2371 (net: zero)
+**Balance impact:** Axis Bank −₹2,371, Axis CC outstanding −₹2,371
+**Net worth impact:** Zero (money moves between own accounts)
 
 ---
 
-### ✅ Test 3: Self Transfer (Normal)
+### ✅ Test 5: Brokerage Fee (NOT an investment)
 
-**Input:** "Transferred 20000 from Axis Bank to SBI"
+**Input:** "Paid 47 rupees brokerage for Zerodha trade"
+
+`transactions`:
+```
+category_id      → [Brokerage uuid]          ← expense category, NOT investment
+account_id       → [Zerodha/Groww Account uuid]
+amount           → 47.00
+transaction_type → "expense"
+```
+
+**investment_snapshots:** NOT written. Brokerage never goes here.
+**Brokerage in investment_snapshots.category_id:** NOT allowed. App layer prevents it.
+
+---
+
+### ✅ Test 6: Self Transfer (Normal)
+
+**Input:** "Transferred 20,000 from Axis to SBI"
 
 `transfers`:
 ```
 from_account_id  → [Axis Bank uuid]
-from_source_type → NULL                           ← G2 fix
+from_source_type → NULL
 to_account_id    → [SBI uuid]
-amount → 20000.00
-buffer → 0.00
-transfer_type → "transfer"
+amount           → 20000.00
+buffer           → 0.00
+transfer_type    → "transfer"
 ```
 
-**Constraint check:**
-- Amount 20000 < 50000 → no second confirmation needed ✅
-- from_account_id != to_account_id → ✅ (different accounts)
-- buffer = 0 < 1000 → ✅
+**Net worth impact:** Zero (internal movement)
 
 ---
 
-### ✅ Test 4: Dividend Income (Special Source Type)
+### ✅ Test 7: Dividend Income
 
-**Input:** "Received 41.25 dividend in Groww Account"
+**Input:** "Received ₹41.25 dividend in Groww"
 
 `transfers`:
 ```
-from_account_id  → NULL                           ← G2 fix: nullable
-from_source_type → "dividend"                     ← G2 fix: new field
+from_account_id  → NULL
+from_source_type → "dividend"
 to_account_id    → [Groww Account uuid]
-amount → 41.25
-transfer_type → "dividend"
+amount           → 41.25
+transfer_type    → "dividend"
 ```
 
-**Pre-v2.1 failure:** `from_account_id FK` would reject "Dividend" since it's not an account UUID.
-**v2.1 fix:** `from_account_id` is nullable. `from_source_type` stores the special type. ✅
+**Net worth impact:** Increases ₹41.25 (external money entering system)
 
 ---
 
-### ✅ Test 5: New Category Created by AI
+### ✅ Test 8: Monthly Investment (SIP)
 
-**Input:** "Paid 500 for haircut at salon"
-
-**LLM:** no match in existing categories with ≥80% confidence → create new.
-
-`categories`:
-```
-user_id         → [user uuid]
-parent_id       → NULL (top-level)
-name            → "Personal Care"
-is_global       → FALSE
-is_auto_created → TRUE
-ai_confidence   → 0.71
-```
-
-`transactions`:
-```
-category_id → [new Personal Care uuid]
-amount      → 500.00
-```
-
-`edit_log`:
-```
-action="UPSERT", table_name="categories",
-new_value=<full JSON of new category>
-```
-
----
-
-### ✅ Test 6: High-Value Non-Investment Transaction (D12 Sanity Check)
-
-**Input:** "Paid 60000 to landlord for rent"
-
-**LLM parse:** amount=60000, category="Household", subcategory="House Rent"
-
-**Validator (D12):** amount > 50000 AND transaction_type ≠ "investment" → require second confirmation
-
-`pending_entries`:
-```
-parsed_json → { amount: 60000, requires_second_confirm: true }
-expires_at  → now() + 10min
-```
-
-Second confirmation message sent. User confirms again. Only then written to `transactions`.
-
----
-
-### ✅ Test 7: Monthly Investment Snapshot
-
-**Input:** Manual entry for March 2026 SIP
+**Input:** March 2026 SIP entry
 
 `investment_snapshots`:
 ```
-snapshot_date   → 2026-03-01          (always first of month)
-category_id     → [SIP uuid]          (subcategory under Investments)
+snapshot_date   → 2026-03-01
+category_id     → [SIP uuid]              ← NOT Brokerage. NOT Profit Booking.
 initial_amount  → 180000.00
-new_amount      → 5000.00
-total           → 185000.00           (GENERATED column)
+new_amount      → 5000.00                 ← same as transactions WHERE category=SIP AND month=Mar
+total           → 185000.00               (GENERATED)
 target_amount   → 300000.00
 ```
 
-**UNIQUE constraint check:** (user_id, snapshot_date="2026-03-01", category_id=SIP) → must be unique → prevents duplicate March SIP entry ✅
+---
+
+### ✅ Test 9: CC Outstanding Calculation
+
+**Formula:** CC Outstanding = Total Spend − Total Paid − Cashback
+
+```sql
+SELECT
+  a.name AS card_name,
+  COALESCE(SUM(t.amount) FILTER (WHERE t.is_deleted = FALSE), 0) AS total_spend,
+  COALESCE(SUM(p.amount) FILTER (WHERE p.is_deleted = FALSE), 0) AS total_paid,
+  COALESCE(SUM(tf.amount) FILTER (
+    WHERE tf.transfer_type = 'cashback'
+    AND tf.is_deleted = FALSE
+    AND tf.to_account_id = a.id
+  ), 0) AS cashback,
+  (
+    COALESCE(SUM(t.amount) FILTER (WHERE t.is_deleted = FALSE), 0)
+    - COALESCE(SUM(p.amount) FILTER (WHERE p.is_deleted = FALSE), 0)
+    - COALESCE(SUM(tf.amount) FILTER (WHERE tf.transfer_type = 'cashback' AND tf.is_deleted = FALSE), 0)
+  ) AS outstanding
+FROM accounts a
+LEFT JOIN transactions t ON t.account_id = a.id
+LEFT JOIN cc_payments p ON p.credit_card_account_id = a.id
+LEFT JOIN transfers tf ON tf.to_account_id = a.id
+WHERE a.user_id = $1 AND a.type = 'credit'
+GROUP BY a.id, a.name;
+```
 
 ---
 
-### ❌ Test 8: Attempt to Use Credit Card to Pay CC Bill
+### ✅ Test 10: Net Worth Calculation (v2.2 — Cash Included)
 
-**Input:** User tries to set paid_from = Scapia (credit card)
-
-**Constraint:** RLS policy + application validation should reject any `paid_from_account_id` where `accounts.type = 'credit'`
-
-**Code.gs equivalent:** `setupCCBills()` only shows `accMap['UPI/Bank Accounts']` in B dropdown — never shows CC accounts. DB constraint enforces this at data layer too.
-
-**Pre-v2.1:** No explicit DB constraint. App layer was the only guard.
-**v2.1:** Add `CHECK` or RLS policy: `paid_from_account_id` must link to account with type IN ('savings', 'wallet', 'cash').
+```sql
+-- Net Worth = SUM of: opening_balance + income - expenses - cc_bills_paid + net_transfers
+-- For ALL accounts where include_in_net_worth = TRUE (includes cash)
+SELECT
+  a.name,
+  a.type,
+  a.opening_balance
+    + COALESCE(inc.total_income, 0)
+    - COALESCE(exp.total_expense, 0)
+    - COALESCE(cc.total_cc_paid, 0)
+    + COALESCE(tr.net_transfer, 0)
+  AS current_balance
+FROM accounts a
+LEFT JOIN (
+  SELECT account_id, SUM(amount) AS total_income
+  FROM income_entries WHERE is_deleted = FALSE GROUP BY account_id
+) inc ON inc.account_id = a.id
+LEFT JOIN (
+  SELECT account_id, SUM(amount) AS total_expense
+  FROM transactions WHERE is_deleted = FALSE AND transaction_type = 'expense' GROUP BY account_id
+) exp ON exp.account_id = a.id
+LEFT JOIN (
+  SELECT paid_from_account_id, SUM(amount) AS total_cc_paid
+  FROM cc_payments WHERE is_deleted = FALSE GROUP BY paid_from_account_id
+) cc ON cc.paid_from_account_id = a.id
+LEFT JOIN (
+  SELECT
+    account_id,
+    SUM(CASE WHEN direction = 'in'  THEN amount ELSE 0 END)
+    - SUM(CASE WHEN direction = 'out' THEN amount ELSE 0 END) AS net_transfer
+  FROM (
+    SELECT to_account_id   AS account_id, amount, 'in'  AS direction FROM transfers WHERE is_deleted = FALSE
+    UNION ALL
+    SELECT from_account_id AS account_id, amount, 'out' AS direction FROM transfers WHERE is_deleted = FALSE AND from_account_id IS NOT NULL
+  ) t GROUP BY account_id
+) tr ON tr.account_id = a.id
+WHERE a.user_id = $1
+  AND a.is_active = TRUE
+  AND a.include_in_net_worth = TRUE;
+-- NOTE: Cash (type='cash') IS included. No exclusions. v2.2 fix.
+```
 
 ---
 
-### ❌ Test 9: Edit a Transaction (Audit Trail)
+### ❌ Test 11: Reject Brokerage in Investment Snapshots
 
-**Action:** User edits Kharche row — changes amount from 340 to 400
+**Action:** Attempt to write `investment_snapshots` row with `category_id` pointing to "Brokerage" category
 
-`transactions`:
-```
-amount    → 400.00        (updated)
-edited_at → now()         (set)
-is_deleted → FALSE
-```
-
-`edit_log` — TWO rows written:
-```
-Row 1: action="UPDATE", field="amount", old_value="340.00", new_value="400.00"
-Row 2: action="UPDATE", field="edited_at", old_value="NULL", new_value="<timestamp>"
+**DB-level guard:**
+```sql
+-- In investment_snapshots, add a CHECK constraint or use a DB function:
+-- Only allow categories that are NOT marked as brokerage
+-- Application layer: block via category.type != 'expense_only'
 ```
 
-**Key:** One edit_log row per field changed. If user edits 3 fields → 3 edit_log rows.
+**App layer:** Investment snapshot form only shows categories with `parent_name = 'Investments'`
+AND `name NOT IN ('Brokerage')` — enforced in UI dropdown.
 
 ---
 
-### ❌ Test 10: Soft Delete
-
-**Action:** User deletes a Kharche row
-
-`transactions`:
-```
-is_deleted → TRUE        (soft delete)
-edited_at  → now()
-```
-
-`edit_log`:
-```
-action="SOFT_DELETE", field="is_deleted", old_value="false", new_value="true"
-```
-
-**All dashboard SUMIFS/queries:** must include `WHERE is_deleted = FALSE`. Overall sheet has this after Phase 1 migration (Task J1 in phase1_checklist.md).
-
----
-
-## Critical Design Rules (From Code.gs + Architecture Deep Read)
-
-| Rule | Source | Implementation |
-|------|--------|---------------|
-| Kharche cols A–H frozen | Code.gs CONFIG, Risk F12 | New columns only RIGHT of col H. Never insert before H. |
-| G column (Application) ≠ F column (AccSubcat) | Code.gs v5.0.0 uses same accMap for both | WRONG in current AppScript. Phase 1: G must come from AppMappings, not accMap. Until then, G stores sub-account not app. |
-| onEdit() only fires for Kharche | Code.gs line 202: `if (sName !== CONFIG.sheets.kharche) return` | CC Bills and Adhoc cascades are static (set at setup). No real-time cascade for those sheets. |
-| Category retire, never rename | Architecture D05, Code.gs test D10 | `is_active = FALSE`. All historical rows keep original category value. |
-| Buffer < small value | Code.gs Adhoc col E | DB CHECK: `buffer < 1000` (reconciliation only, not for large transfers) |
-| from_account_id nullable for special sources | Code.gs Adhoc From list includes "Dividend" etc. | `from_account_id UUID REFERENCES accounts(id)` → add `NULL`ability |
-| Splitwise is an account | Live data: Splitwise ₹37,552 balance | `accounts.type = 'other'`. Handled as regular account. |
-| Overall col I = formula, never picker | Code.gs `setupOverall()` explicitly never touches col I | P05 test verifies this. Dashboard reads computed values only. |
-| cache cleared every edit | Code.gs `onEdit()` calls `clearCache()` first | In web app: invalidate 5-min TTL cache on any write |
-| Pending entries expire in 10 min | Architecture D11, F10 | `pending_entries.expires_at = created_at + interval '10 minutes'` |
-
----
-
-## Account Hierarchy (From Live Sheet)
+## Account Hierarchy (v2.2 — Cash Included in Net Worth)
 
 ```
 accounts
-├── Cash Payment                    (type=cash, no sub-accounts)
-├── UPI/Bank Accounts               (type=savings, parent)
-│   ├── Axis Bank                   (type=savings)
-│   ├── State Bank of India (SBI)   (type=savings)
-│   ├── Amazon Pay                  (type=wallet)
-│   └── Groww Account               (type=wallet)
-├── Credit Card                     (type=credit, parent)
-│   ├── Axis Bank CC                (type=credit)
-│   ├── ICICI                       (type=credit)
-│   └── Scapia                      (type=credit)
-├── Investments                     (type=investment, no sub-accounts — tracked via investment_snapshots)
-└── Splitwise                       (type=other, no sub-accounts)
+├── Cash Payment              (type=cash,       opening_balance=2,080,    include_in_net_worth=TRUE)
+├── UPI/Bank Accounts         (type=savings,     parent, no balance)
+│   ├── Axis Bank             (type=savings,    opening_balance=5,64,507, include_in_net_worth=TRUE)
+│   ├── State Bank of India   (type=savings,    opening_balance=11,835,   include_in_net_worth=TRUE)
+│   ├── Amazon Pay            (type=wallet,     opening_balance=271.66,   include_in_net_worth=TRUE)
+│   └── Groww Account         (type=wallet,     opening_balance=0,        include_in_net_worth=TRUE)
+├── Credit Card               (type=credit,      parent, no balance)
+│   ├── Axis Bank CC          (type=credit,     opening_balance=0,        include_in_net_worth=TRUE)  ← outstanding = negative
+│   ├── ICICI                 (type=credit,     opening_balance=0,        include_in_net_worth=TRUE)
+│   └── Scapia                (type=credit,     opening_balance=0,        include_in_net_worth=TRUE)
+├── Investments               (type=investment,  opening_balance=3,48,935, include_in_net_worth=TRUE)
+└── Splitwise                 (type=other,       opening_balance=1,16,146, include_in_net_worth=TRUE)
 
-AppMappings (payment app → bank account):
-Paytm          → State Bank of India (SBI)
-GPay           → Axis Bank
-PhonePe        → State Bank of India (SBI)
-Scapia app     → Scapia (Credit Card)
-Swiggy         → Axis Bank CC
-Groww app      → Groww Account
-Amazon Pay app → Amazon Pay
-Default UPI    → Axis Bank
-Default CC     → Scapia
-Default Cash   → Cash Payment
+NOTES:
+- Credit card balance is NEGATIVE in net worth (it's a liability)
+- CC outstanding is tracked separately via cc_payments net calculation
+- opening_balance for Axis Bank = 5,64,507.85 (from Overall!B3 hardcoded base)
+  + salary sum is handled by income_entries table going forward
 ```
 
 ---
@@ -482,9 +547,9 @@ Default Cash   → Cash Payment
 ## DBML — Paste Into dbdiagram.io for Visual Diagram
 
 ```dbml
-// Net Worth Calculator — Database Schema v2.1
-// Paste this at: https://dbdiagram.io/d
-// Or use: https://app.eraser.io
+// Net Worth Calculator — Database Schema v2.2
+// HOW TO USE: Go to https://dbdiagram.io/d → click "Import" → paste this entire block
+// Or: https://app.eraser.io → new diagram → paste
 
 Table users {
   id uuid [pk, default: `gen_random_uuid()`]
@@ -499,10 +564,10 @@ Table categories {
   parent_id uuid [ref: > categories.id, note: 'NULL = top-level']
   name text [not null]
   icon text [note: 'emoji for UI']
-  is_active boolean [default: true]
+  is_active boolean [default: true, note: 'FALSE = retired. Never rename.']
   is_global boolean [default: false]
   is_auto_created boolean [default: false]
-  ai_confidence numeric(4,2) [note: '0.0–1.0']
+  ai_confidence numeric(4,2) [note: '0.0-1.0']
   promotion_candidate_count integer [default: 0]
   promotion_flagged boolean [default: false]
   created_at timestamptz [default: `now()`]
@@ -514,6 +579,9 @@ Table accounts {
   parent_id uuid [ref: > accounts.id, note: 'NULL = top-level group']
   name text [not null]
   type text [not null, note: 'cash|savings|credit|investment|wallet|other']
+  opening_balance numeric(12,2) [default: 0.00, note: 'v2.2 CRITICAL FIX: seed from sheet col B']
+  opening_balance_date date [note: 'date the opening balance applies from']
+  include_in_net_worth boolean [default: true, note: 'TRUE for all standard accounts including cash']
   is_active boolean [default: true]
   created_at timestamptz [default: `now()`]
 }
@@ -527,6 +595,19 @@ Table app_mappings {
   created_at timestamptz [default: `now()`]
 }
 
+Table income_entries {
+  id uuid [pk, default: `gen_random_uuid()`]
+  user_id uuid [not null, ref: > users.id]
+  date date [not null]
+  type text [not null, note: 'salary | freelance | interest | dividend | other']
+  particulars text [note: 'e.g. Feb 2026 Salary']
+  account_id uuid [not null, ref: > accounts.id, note: 'which account received it']
+  amount numeric(12,2) [not null, note: 'CHECK amount > 0']
+  raw_input text [note: 'NULL for manual entry']
+  is_deleted boolean [default: false]
+  created_at timestamptz [default: `now()`]
+}
+
 Table transactions {
   id uuid [pk, default: `gen_random_uuid()`]
   user_id uuid [not null, ref: > users.id]
@@ -535,9 +616,9 @@ Table transactions {
   category_id uuid [not null, ref: > categories.id]
   account_id uuid [not null, ref: > accounts.id]
   application text [note: 'Paytm, GPay, NULL for cash/direct. NOT a FK']
-  amount numeric(12,2) [not null, note: 'CHECK amount > 0']
+  amount numeric(12,2) [not null, note: 'CHECK amount > 0. Always positive.']
   transaction_type text [default: 'expense', note: 'expense | income']
-  raw_input text [note: 'verbatim voice transcript. NULL for manual']
+  raw_input text
   is_deleted boolean [default: false]
   edited_at timestamptz
   created_at timestamptz [default: `now()`]
@@ -547,8 +628,8 @@ Table cc_payments {
   id uuid [pk, default: `gen_random_uuid()`]
   user_id uuid [not null, ref: > users.id]
   date date [not null]
-  paid_from_account_id uuid [not null, ref: > accounts.id, note: 'ONLY type=savings/wallet/cash']
-  credit_card_account_id uuid [not null, ref: > accounts.id, note: 'ONLY type=credit']
+  paid_from_account_id uuid [not null, ref: > accounts.id, note: 'ONLY type: savings|wallet|cash']
+  credit_card_account_id uuid [not null, ref: > accounts.id, note: 'ONLY type: credit']
   amount numeric(12,2) [not null, note: 'CHECK amount > 0']
   raw_input text
   is_deleted boolean [default: false]
@@ -561,7 +642,7 @@ Table transfers {
   user_id uuid [not null, ref: > users.id]
   date date [not null]
   from_account_id uuid [ref: > accounts.id, note: 'NULL when from_source_type is set']
-  from_source_type text [note: 'NULL | dividend | refund | cashback | profit_booking_equity']
+  from_source_type text [note: 'dividend | refund | cashback | profit_booking_equity']
   to_account_id uuid [not null, ref: > accounts.id]
   amount numeric(12,2) [not null, note: 'CHECK amount > 0']
   buffer numeric(12,2) [default: 0.00, note: 'CHECK buffer < 1000']
@@ -576,9 +657,9 @@ Table investment_snapshots {
   id uuid [pk, default: `gen_random_uuid()`]
   user_id uuid [not null, ref: > users.id]
   snapshot_date date [not null, note: 'always first of month']
-  category_id uuid [not null, ref: > categories.id, note: 'Equity Stocks, SIP, MF, NPS, etc.']
-  initial_amount numeric(12,2) [default: 0.00]
-  new_amount numeric(12,2) [default: 0.00, note: 'new money added this month']
+  category_id uuid [not null, ref: > categories.id, note: 'Equity Stocks|SIP|MF|NPS|FD|IPO. NOT Brokerage.']
+  initial_amount numeric(12,2) [default: 0.00, note: 'value at start of month']
+  new_amount numeric(12,2) [default: 0.00, note: 'new money added. Phase 2: replace with view.']
   total numeric(12,2) [note: 'GENERATED: initial + new_amount']
   target_amount numeric(12,2) [default: 0.00]
   created_at timestamptz [default: `now()`]
@@ -592,9 +673,10 @@ Table net_worth_snapshots {
   id uuid [pk, default: `gen_random_uuid()`]
   user_id uuid [not null, ref: > users.id]
   snapshot_date date [not null, note: 'first of month']
-  account_name text [note: 'denormalised for historical accuracy']
-  balance numeric(12,2)
-  total_net_worth numeric(12,2) [note: 'sum of all accounts this month']
+  account_id uuid [not null, ref: > accounts.id, note: 'v2.2 FIX: added FK']
+  account_name text [note: 'denormalised: name at time of snapshot']
+  balance numeric(12,2) [note: 'account balance at snapshot_date. Cash INCLUDED.']
+  total_net_worth numeric(12,2) [note: 'sum of ALL account balances. Includes cash.']
   created_at timestamptz [default: `now()`]
 
   indexes {
@@ -608,7 +690,7 @@ Table pending_entries {
   channel text [not null, note: 'whatsapp | browser_voice']
   raw_input text
   parsed_json jsonb [note: 'LLM output awaiting user confirmation']
-  entry_type text [note: 'transaction | cc_payment | transfer']
+  entry_type text [note: 'transaction | cc_payment | transfer | income']
   expires_at timestamptz [note: 'created_at + 10 minutes']
   is_expired boolean [default: false]
   created_at timestamptz [default: `now()`]
@@ -634,12 +716,12 @@ Table edit_log {
   source text [not null, note: 'whatsapp_bot | browser_voice | direct_sheet | api | migration']
   action text [not null, note: 'INSERT | UPDATE | SOFT_DELETE | UPSERT']
   table_name text [not null]
-  record_id uuid [not null, note: 'UUID of affected row']
+  record_id uuid [not null]
   field_changed text [note: 'NULL for INSERT']
   old_value text
   new_value text [note: 'full JSON for INSERT; field value for UPDATE']
-  raw_input text [note: 'verbatim transcript for voice; NULL for manual']
-  confirmed boolean [default: true, note: 'G3 fix: was missing in v2.0']
+  raw_input text
+  confirmed boolean [default: true]
 
   Note: 'APPEND ONLY. No UPDATE or DELETE permissions granted at DB level.'
 }
@@ -647,26 +729,40 @@ Table edit_log {
 
 ---
 
-## Tables by Phase
+## Where to View This Visually
 
-| Table | Phase Created | Phase Active | Notes |
-|-------|--------------|-------------|-------|
-| users | Phase 2 | Phase 2+ | |
-| categories | Phase 2 | Phase 2+ | Seeded with global base (13 parent + 38 subcats) |
-| accounts | Phase 2 | Phase 2+ | Seeded from live sheet |
-| app_mappings | Phase 2 | Phase 4 (voice) | Seeded with 10 known mappings |
-| transactions | Phase 2 | Phase 3+ | |
-| cc_payments | Phase 2 | Phase 3+ | |
-| transfers | Phase 2 | Phase 3+ | |
-| investment_snapshots | Phase 2 | Phase 3+ | |
-| net_worth_snapshots | Phase 2 | Phase 3+ | Computed monthly by job or on-demand |
-| pending_entries | Phase 2 | Phase 4+ (voice) | In-memory sessionStore until Phase 4 |
-| budgets | Phase 2 | Phase 5+ | Dormant table until budget feature |
-| edit_log | Phase 2 | Phase 2+ | |
-
-**Total: 12 tables. All created together in Phase 2. Zero schema migrations across phases.**
+| Tool | How | Best for |
+|------|-----|----------|
+| **dbdiagram.io** (recommended) | Copy the DBML block above → go to https://dbdiagram.io/d → click "Import" on left panel → paste | Fastest visual. Clean diagram. Share via link. Free. |
+| **Eraser.io** | Go to https://app.eraser.io → new diagram → select "Entity Relationship" → paste DBML | Better for team collaboration. AI can refine it. |
+| **GitHub** | This file renders the Mermaid diagram automatically in the repo | Best for version control. Already live at github.com/golaitadarsh/Net-Worth-Calculator |
+| **VS Code** | Install "Markdown Preview Mermaid Support" extension → open this file → Preview | Local. No internet needed. |
+| **Gemini** | See `docs/design/gemini_er_prompt.md` | Best for getting a human-readable explanation + visual narrative |
 
 ---
 
-*Net Worth Calculator ER Diagram v2.1 · March 2026*
-*Updated after deep analysis of Code.gs (v5.0.0, 1,397 lines) + architecture_v2.md*
+## Tables by Phase (13 tables total)
+
+| Table | Phase Created | Notes |
+|-------|--------------|-------|
+| users | Phase 2 | |
+| categories | Phase 2 | Seeded with global base (13 parent + 40 subcats incl. Brokerage as expense) |
+| accounts | Phase 2 | Seeded from live sheet + opening_balances from Overall col B |
+| app_mappings | Phase 2 | Seeded with 10 known mappings |
+| income_entries | Phase 2 | Replaces Overall sheet salary section (H-K cols) |
+| transactions | Phase 2 | |
+| cc_payments | Phase 2 | |
+| transfers | Phase 2 | |
+| investment_snapshots | Phase 2 | |
+| net_worth_snapshots | Phase 2 | Computed monthly by job or on-demand |
+| pending_entries | Phase 2 | In-memory sessionStore until Phase 4 (voice) |
+| budgets | Phase 2 | Dormant until budget feature |
+| edit_log | Phase 2 | |
+
+**Zero schema migrations across all phases. All 13 tables created together in Phase 2.**
+
+---
+
+*Net Worth Calculator ER Diagram v2.2 · March 2026*
+*Updated after: formula_audit.md cell-by-cell analysis + Code.gs v5.0.0 (1,397 lines)*
+*Key fixes: opening_balance added, cash included in net worth, brokerage removed from investments, income_entries table added, net_worth_snapshots FK fixed*
