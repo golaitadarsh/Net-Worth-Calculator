@@ -1,7 +1,7 @@
 # State — Net Worth Calculator
 
 **Last updated:** 2026-03-28
-**Current phase:** Phase 1 — Foundation Setup
+**Current phase:** Phase 1 — Google Sheets Migration
 
 ---
 
@@ -9,52 +9,81 @@
 
 | Phase | Status | Description |
 |-------|--------|-------------|
-| Phase 1: Foundation | 🟡 In Progress | Repo structure, memory files, AppScript extraction |
-| Phase 2: Schema Design | ⬜ Not Started | Normalized SQL schema (7 tables) |
-| Phase 3: Supabase Setup | ⬜ Not Started | Create project, run DDL, populate lookups |
-| Phase 4: App Build | ⬜ Not Started | Stitch UI → Lovable scaffold → Claude Code refine |
+| Phase 0: Foundation Docs | ✅ Complete | PRD, ER diagram, schema v2, architecture, all core docs |
+| Phase 1: Sheet Migration | 🟡 In Progress | 19-task AppScript/Sheet migration → API-ready structure |
+| Phase 2: Supabase Setup | ⬜ Not Started | Create project, run DDL, seed data, enable RLS |
+| Phase 3: App Build | ⬜ Not Started | Stitch UI → Lovable scaffold → Claude Code logic |
+| Phase 4: Voice Layer | ⬜ Not Started | Web mic → Web Speech API → Gemini parse → confirm |
+| Phase 5: WhatsApp Input | ⬜ Not Started | Meta Cloud API + Sarvam ASR + same parse pipeline |
 
 ---
 
 ## Completed
 
-- [x] Product roadmap planned (Claude Code, 2026-03-28)
-- [x] AI tool stack decided (Google Stitch for UI, Lovable for scaffold, Claude Code for logic)
-- [x] Folder structure created: `docs/schema/`, `docs/design/`, `sheets/`, `legacy/`
-- [x] Foundation files created: CLAUDE.md, RULEBOOK.md, NAMING.md, STATE.md, DECISIONS.md, PROMPT_LOG.md, JOURNEY.md, README.md
+### Phase 0 — Foundation
+- [x] Claude Code installed + GitHub authenticated (`golaitadarsh`)
+- [x] Folder structure created and organised
+- [x] All foundation files: CLAUDE.md, RULEBOOK.md, NAMING.md, DECISIONS.md, PROMPT_LOG.md, JOURNEY.md, README.md
 - [x] AppScript extracted: `sheets/Code.gs` (1,397 lines, v5.0.0 FINAL)
-- [x] FinVoice_Schema_Template renamed to Net_Worth_Calculator_Schema_Template
-- [x] Old Artifacts extracted and analysed: architecture_v2, AdarshWallet code
-- [x] `docs/design/architecture_v2.md` — full locked 5-phase architecture spec (AI-readable markdown)
-- [x] `docs/schema/schema_v1.md` — complete Supabase-ready SQL DDL for all 8 tables
-- [x] `legacy/adarsh-wallet-v2/` — React Native app code preserved (reusable for Phase 3 dashboard)
-- [x] DECISIONS.md updated with 8 ADRs (including EAV format, soft deletes, user_id, service layer)
+- [x] Old artifacts extracted: architecture_v2.md (markdown), legacy/adarsh-wallet-v2/ (React Native code)
+- [x] `docs/design/architecture_v2.md` — full locked 5-phase architecture spec
+- [x] `docs/schema/schema_v1.md` — EAV-based schema (reference only, superseded by v2)
+- [x] `docs/PRD.md` — Product Requirements Document (8 sections)
+- [x] `docs/design/er_diagram.md` — Mermaid ER diagram (10 tables, all relationships)
+- [x] `docs/schema/schema_v2.md` — Normalised SQL DDL (supersedes v1 EAV approach)
+- [x] `sheets/migration/phase1_checklist.md` — 19-task migration guide with column maps
+- [x] `docs/design/competitive_analysis.md` — 8 competitors analysed
+- [x] DECISIONS.md — 8 ADRs logged
+- [x] Pushed to GitHub: https://github.com/golaitadarsh/Net-Worth-Calculator
 
 ---
 
 ## In Progress
 
-- [ ] GitHub repo sync (local files → push to https://github.com/golaitadarsh/Net-Worth-Calculator)
-- [ ] Google Sheets MCP setup (Claude Code → live read access to Google Sheet)
+- [ ] Phase 1: Google Sheets migration (see `sheets/migration/phase1_checklist.md`)
+  - Group A: Cleanup (Sheet8, Fixed Budget columns)
+  - Group B: Dropdown Lists → Categories + Accounts sheets (ROOT FIX)
+  - Group C–E: Add audit columns to Kharche, CC Bills, Adhoc
+  - Group F: Investments → row-per-month format
+  - Group G: Add user_id to all sheets
+  - Group H: Create Edit Log sheet + AppScript hook
+  - Group I: Update AppScript for new schema
+  - Group J: Update Overall SUMIFS for is_deleted filter
 
 ---
 
 ## Next Steps
 
-1. Push to GitHub (blocked: needs GitHub auth — see README for options)
-2. Set up Google Sheets MCP in Claude Code settings
-3. Create Claude Chat Project named "Net Worth Calculator", upload CLAUDE.md + RULEBOOK.md + STATE.md + architecture_v2.md
-4. Start Phase 1 of architecture_v2.md: 19-task data layer migration checklist
-5. After Phase 1: schema is stable → proceed to voice layer (Phase 2) or dashboard (Phase 3)
+1. Start Phase 1: open `sheets/migration/phase1_checklist.md` and work through tasks A1–J3
+2. After Phase 1 complete: run 30-test AppScript suite → all pass
+3. After Phase 1: start Phase 2 (Supabase — `docs/schema/schema_v2.md` DDL)
+4. Optional: set up Google Sheets MCP for live sheet access from Claude Code
+5. Optional: create Claude Chat Project "Net Worth Calculator" — upload CLAUDE.md + architecture_v2.md + STATE.md
 
 ---
 
 ## Open Questions
 
-- Which Google Sheet URL is the live working sheet? (needed for MCP setup)
-- Supabase: create new project or existing account? (free tier)
-- For Phase 3 dashboard: use AdarshWallet React Native code as base, or fresh Next.js via Lovable?
-- Voice input (WhatsApp bot — Phase 2): priority or defer to after dashboard?
+- Splitwise integration: first-class account type with its own UI flow, or generic account? (decide before Phase 3)
+- Which specific Google Sheet URL is the live working sheet? (needed for Sheets MCP)
+- Phase 3 dashboard: fresh Lovable scaffold vs porting AdarshWallet React Native code?
+
+---
+
+## Key File Locations
+
+| File | Purpose |
+|------|---------|
+| `CLAUDE.md` | Auto-read by Claude Code — project brief |
+| `RULEBOOK.md` | All rules, naming conventions, AI tool assignments |
+| `NAMING.md` | Naming conventions (files, DB, code, UI, git) |
+| `DECISIONS.md` | Architecture decision log (ADRs) |
+| `docs/PRD.md` | Product requirements (locked for Phase 0–2) |
+| `docs/design/architecture_v2.md` | Full architecture spec (most important reference) |
+| `docs/design/er_diagram.md` | Mermaid ER diagram (10 tables) |
+| `docs/schema/schema_v2.md` | Final target SQL DDL (run this in Supabase Phase 2) |
+| `sheets/migration/phase1_checklist.md` | 19-task migration checklist |
+| `sheets/Code.gs` | AppScript v5.0.0 FINAL (current live code) |
 
 ---
 
